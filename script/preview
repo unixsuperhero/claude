@@ -12,7 +12,6 @@ TRACKED_PATTERNS = %w[
   commands
   agents
   skills
-  plugins
   settings.json
   settings.local.json
 ]
