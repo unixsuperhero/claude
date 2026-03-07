@@ -1,5 +1,6 @@
 # Temp rsync folder (contains sensitive session data)
 claude_rsync/
+plugins/
 
 # Keep the temp folder structure
 !claude_rsync/.keep
