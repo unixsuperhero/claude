@@ -1,0 +1,78 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'pathname'
+
+REPO_ROOT = Pathname.new(File.expand_path('..', __dir__))
+CLAUDE_HOME = Pathname.new(File.expand_path('~/.claude'))
+TEMP_DIR = REPO_ROOT / 'claude_rsync'
+
+# Files/folders to track (tooling)
+TRACKED_PATTERNS = %w[
+  commands
+  agents
+  skills
+  plugins
+  settings.json
+  settings.local.json
+]
+
+def main
+  # 1. Create temp folder
+  FileUtils.mkdir_p(TEMP_DIR)
+
+  # 2. Rsync ~/.claude/ into temp folder
+  system('rsync', '-avz', "#{CLAUDE_HOME}/", "#{TEMP_DIR}/")
+
+  # 3. Find new files that should be tracked and aren't symlinks
+  TRACKED_PATTERNS.each do |pattern|
+    source_path = TEMP_DIR / pattern
+    next unless source_path.exist?
+
+    if source_path.directory?
+      process_directory(source_path, pattern)
+    else
+      process_file(source_path, pattern)
+    end
+  end
+
+  puts "\nSetup complete!"
+end
+
+def process_directory(source_dir, relative_base)
+  Dir.glob(source_dir / '**' / '*').each do |file|
+    next if File.directory?(file)
+
+    relative_to_temp = Pathname.new(file).relative_path_from(TEMP_DIR).to_s
+    process_file(Pathname.new(file), relative_to_temp)
+  end
+end
+
+def process_file(source_file, relative_path)
+  repo_file = REPO_ROOT / relative_path
+  claude_file = CLAUDE_HOME / relative_path
+
+  # Skip if already a symlink in ~/.claude
+  return if claude_file.symlink?
+
+  # Skip if repo file already exists and is up to date
+  if repo_file.exist?
+    return if FileUtils.identical?(source_file.to_s, repo_file.to_s)
+  end
+
+  # Create directory structure in repo
+  FileUtils.mkdir_p(repo_file.dirname)
+
+  # Move file to repo
+  puts "Moving: #{relative_path}"
+  FileUtils.cp(source_file.to_s, repo_file.to_s)
+
+  # Replace original in ~/.claude with symlink to repo file
+  if claude_file.exist? && !claude_file.symlink?
+    puts "Creating symlink: ~/.claude/#{relative_path} -> #{repo_file}"
+    FileUtils.rm(claude_file.to_s)
+    FileUtils.ln_s(repo_file.to_s, claude_file.to_s)
+  end
+end
+
+main
