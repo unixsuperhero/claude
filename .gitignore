@@ -1,0 +1,22 @@
+# Session and history data (sensitive)
+history.jsonl
+projects/
+session-env/
+file-history/
+todos/
+
+# Debug and cache data
+debug/
+cache/
+shell-snapshots/
+
+# Stats and telemetry
+stats-cache.json
+statsig/
+telemetry/
+
+# Plans (may contain session-specific info)
+plans/
+
+# Tasks (session-specific)
+tasks/
