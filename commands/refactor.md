@@ -115,6 +115,12 @@ Different rules for different layers:
 - Should NOT do low-level data manipulation directly
 - **NEVER mix levels** - a high-level class should never do low-level work; delegate instead
 
+**Where high-level code lives:** This is code near where the execution path entered the system, but *after* being handled by any framework. It's where project maintainers start writing custom code to handle the request:
+- **CLI tool:** The definition of a subcommand (e.g., Thor command method, OptionParser block)
+- **Rails web app/API:** The controller action and any service layer objects the controller calls
+- **Background jobs:** The `perform` method of a job/worker class
+- **Event handlers:** The handler function that receives domain events
+
 ```ruby
 # Low: atomic, composable
 class PriceCalculator
