@@ -31,6 +31,13 @@ Create an HTML file that displays this entire conversation session with the foll
 - Tool calls/results should be nested accordions (collapsed by default)
 - The Assistant's final text response should be prominently highlighted
 
+### CRITICAL: Verbatim Content Preservation
+- **NEVER rewrite, summarize, paraphrase, or abbreviate** the Human's prompts — include the full, exact text as written
+- **NEVER rewrite, summarize, paraphrase, or abbreviate** the Assistant's responses — include the full, exact text as written
+- The only content that may be summarized is the TOC link text (which is a brief label, not a replacement for the actual content)
+- HTML-escape special characters (`<`, `>`, `&`, etc.) but do NOT alter the wording in any way
+- If a message is long, that's fine — display it in full. Do NOT truncate or add "..." or "[continued]"
+
 ### Tool Call Details
 For each tool call, include comprehensive details (all collapsed by default):
 - **Tool name** prominently displayed in the summary
