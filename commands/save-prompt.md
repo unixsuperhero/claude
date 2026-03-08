@@ -10,7 +10,7 @@ Create an HTML file that displays this entire conversation session with the foll
 1. Generate a filename with timestamp and subject summary: `YYYYmmddHHMMSS-subject-matter.html`
    - The subject matter should be 2-3 words separated by hyphens summarizing the session's main topic
    - Example: `20260307181500-gitignore-setup.html` or `20260307190000-ruby-refactoring.html`
-2. Save it to `~/claude/exported_prompts/` (create the directory if it doesn't exist)
+2. Save it to `~/claude/prompts/exports/` (create the directory if it doesn't exist)
 3. Use the `open` command to preview it in the browser
 
 ### Content Organization
