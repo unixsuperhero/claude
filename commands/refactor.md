@@ -588,7 +588,93 @@ This pattern:
 
 ---
 
-## 8. DRY: Reuse Before Extract
+## 8. Avoid Primitive Obsession
+
+**Don't pass raw primitives when a domain concept exists.**
+
+When you see strings, integers, hashes, or arrays being passed around to represent a domain concept, extract a value object or domain object. Primitives lack meaning, validation, and behavior — they force every caller to understand and re-implement the same logic.
+
+```ruby
+# Bad: primitives everywhere
+def schedule_meeting(start_time_str, duration_minutes, attendee_emails)
+  start = Time.parse(start_time_str)
+  end_time = start + (duration_minutes * 60)
+  attendee_emails.each do |email|
+    raise "Invalid email" unless email.match?(URI::MailTo::EMAIL_REGEXP)
+    # ...
+  end
+end
+
+# Good: value objects carry meaning and behavior
+class TimeSlot
+  def initialize(start, duration)
+    @start = start
+    @duration = duration
+  end
+
+  def end_time = @start + @duration
+  def overlaps?(other) = @start < other.end_time && end_time > other.start
+  def to_range = @start..end_time
+
+  attr_reader :start, :duration
+end
+
+class EmailAddress
+  def initialize(address)
+    raise ArgumentError, "Invalid email: #{address}" unless address.match?(URI::MailTo::EMAIL_REGEXP)
+    @address = address
+  end
+
+  def domain = @address.split('@').last
+  def to_s = @address
+end
+
+def schedule_meeting(time_slot, attendees)
+  # time_slot and attendees are already validated, meaningful objects
+end
+```
+
+**Signs of primitive obsession:**
+- The same string/integer format is validated or parsed in multiple places
+- A hash with specific expected keys is passed between methods
+- Methods take 3+ primitives that together represent one concept
+- Comments are needed to explain what a string or number represents
+- Conditional logic checks the format/structure of a primitive
+
+**What to extract:**
+- **Value objects** for immutable data with identity by value (email, money, date range, coordinates)
+- **Domain objects** for concepts with behavior (user, order, task, configuration)
+- **Enums/constants** for fixed sets of values (status, role, priority)
+
+```ruby
+# Bad: hash as a poor man's object
+def process_payment(payment)
+  amount = payment[:amount]
+  currency = payment[:currency]
+  formatted = "#{currency} #{sprintf('%.2f', amount)}"
+  # ...
+end
+
+# Good: value object
+class Money
+  def initialize(amount, currency)
+    @amount = BigDecimal(amount.to_s)
+    @currency = currency
+  end
+
+  def to_s = "#{@currency} #{@amount.round(2)}"
+  def +(other) = Money.new(@amount + other.amount, @currency)
+  def *(factor) = Money.new(@amount * factor, @currency)
+
+  attr_reader :amount, :currency
+end
+```
+
+Value objects make the implicit explicit — they name concepts, enforce invariants, and provide a home for related behavior.
+
+---
+
+## 9. DRY: Reuse Before Extract
 
 **Before creating something new, search for something that already exists.**
 
@@ -647,7 +733,8 @@ When reviewing code, ask:
 17. **Does this class need to be constructed from different sources?** Add `from_*` alternate constructors
 18. **Is this using inheritance?** Refactor to use composition instead
 19. **Is this service object doing heavy lifting?** Extract to mid/low-level classes and delegate
-20. **Before extracting a method, did you search for an existing method that already does this?**
+20. **Are primitives being passed around to represent a domain concept?** Extract a value object or domain object
+21. **Before extracting a method, did you search for an existing method that already does this?**
 
 ---
 
@@ -661,5 +748,6 @@ Look at the code in context and identify refactoring opportunities based on thes
 5. Maintain consistent abstraction level within each method
 6. Use noun-based naming (methods named for what they return, classes named for things)
 7. Organize files properly (one main class per file, named after that class)
+8. Extract value objects for repeated primitive patterns (avoid primitive obsession)
 
 Explain your reasoning as you refactor.
