@@ -13,6 +13,16 @@ Create an HTML file that displays this entire conversation session with the foll
 2. Save it to `~/claude/prompts/exports/` (create the directory if it doesn't exist)
 3. Use the `open` command to preview it in the browser
 
+### Table of Contents
+- Add a **Table of Contents** section at the top, after the header
+- List each exchange as a numbered link (e.g., `<a href="#exchange-1">`)
+- Each link text should be a **concise 5-10 word summary** of what that Human prompt was about
+- Style the TOC as a clean, scannable list with subtle styling matching the theme
+- Example entries:
+  - "Add .gitignore for sensitive Claude session data"
+  - "Convert sync script to Ruby with symlinks"
+  - "Create /save-prompt slash command"
+
 ### Content Organization
 - Each Human message is a primary accordion section (expanded by default)
 - **Add an `id` attribute to each exchange** for anchor linking (e.g., `id="exchange-1"`, `id="exchange-2"`)
@@ -90,6 +100,16 @@ Create a dark, sophisticated interface inspired by retro terminals meets modern 
       <h1>Session Export</h1>
       <time>[TIMESTAMP]</time>
     </header>
+
+    <!-- Table of Contents - links to each exchange -->
+    <nav class="toc">
+      <h2>Contents</h2>
+      <ol class="toc-list">
+        <li><a href="#exchange-1">Brief summary of what prompt #1 was about</a></li>
+        <li><a href="#exchange-2">Brief summary of what prompt #2 was about</a></li>
+        <!-- ... one entry per exchange -->
+      </ol>
+    </nav>
 
     <!-- For each Human/Assistant exchange - add id for anchor linking -->
     <article class="exchange" id="exchange-1">
