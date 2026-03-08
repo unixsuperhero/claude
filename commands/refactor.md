@@ -25,9 +25,75 @@ If no scope is specified, apply refactoring to whatever code the user indicates 
 
 Refactor toward **composable, reusable code** by separating concerns across clear abstraction layers. Think "functional core, imperative shell" (Gary Bernhardt).
 
-**ALMOST NEVER:** Use inheritance.
+**ALMOST NEVER:** Use inheritance or mixins.
 **ALMOST ALWAYS:** Favor composition.
 **ALWAYS:** Check references after renaming classes or changing method signatures (name, args, return value) and update anything that would break.
+
+### Composition Over Mixins
+
+When multiple classes share behavior, **do not** extract it into a mixin/module. Instead, build a **generic, reusable class** and have each specific class compose it.
+
+```ruby
+# Bad: mixin for shared YAML behavior
+module YamlConfigurable
+  def load_yaml(path)
+    YAML.safe_load_file(path)
+  end
+
+  def save_yaml(path, data)
+    File.write(path, data.to_yaml)
+  end
+end
+
+class AppConfig
+  include YamlConfigurable
+end
+
+class UserPreferences
+  include YamlConfigurable
+end
+
+# Good: generic reusable class + composition
+class YamlConfig
+  def initialize(path)
+    @path = path
+  end
+
+  def data
+    @data ||= YAML.safe_load_file(@path)
+  end
+
+  def save(data)
+    File.write(@path, data.to_yaml)
+  end
+
+  def [](key) = data[key]
+end
+
+class AppConfig
+  def initialize(path)
+    @config = YamlConfig.new(path)
+  end
+
+  def app_name = @config['app_name']
+  def version = @config['version']
+end
+
+class UserPreferences
+  def initialize(path)
+    @config = YamlConfig.new(path)
+  end
+
+  def theme = @config['theme']
+  def language = @config['language']
+end
+```
+
+**Why this is better:**
+- `YamlConfig` is independently testable and reusable
+- Each specific class has a clear, domain-specific interface
+- No implicit dependencies — the relationship is explicit
+- `YamlConfig` can evolve (caching, validation, defaults) without touching consumers
 
 ---
 
