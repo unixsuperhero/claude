@@ -505,6 +505,42 @@ This pattern:
 
 ---
 
+## 8. DRY: Reuse Before Extract
+
+**Before creating something new, search for something that already exists.**
+
+When you're about to extract a method, class, or helper, first search the codebase for an existing one that does the same thing. Duplication is the most common source of unnecessary complexity.
+
+```ruby
+# Bad: extracting a new helper without checking what exists
+class OrderExport
+  # You just wrote this, but StringUtils.titleize already exists...
+  def titleize(str)
+    str.split(/[\s_-]/).map(&:capitalize).join(' ')
+  end
+
+  def export(order)
+    titleize(order.customer_name)
+  end
+end
+
+# Good: search first, reuse what's there
+class OrderExport
+  def export(order)
+    StringUtils.titleize(order.customer_name)  # already exists!
+  end
+end
+```
+
+**Before extracting, ask:**
+- Does a method with this behavior already exist somewhere?
+- Does a class already model this concept?
+- Is there a gem/library that handles this?
+
+Search by **behavior** (what it does), not just by name — the existing method might be named differently than what you'd call it.
+
+---
+
 ## Refactoring Checklist
 
 When reviewing code, ask:
@@ -528,6 +564,7 @@ When reviewing code, ask:
 17. **Does this class need to be constructed from different sources?** Add `from_*` alternate constructors
 18. **Is this using inheritance?** Refactor to use composition instead
 19. **Is this service object doing heavy lifting?** Extract to mid/low-level classes and delegate
+20. **Before extracting a method, did you search for an existing method that already does this?**
 
 ---
 
