@@ -15,9 +15,21 @@ Create an HTML file that displays this entire conversation session with the foll
 
 ### Content Organization
 - Each Human message is a primary accordion section (expanded by default)
+- **Add an `id` attribute to each exchange** for anchor linking (e.g., `id="exchange-1"`, `id="exchange-2"`)
+  - Users can jump to specific exchanges via URL like `file.html#exchange-5`
 - Inside each Human section, show the Assistant's response
 - Tool calls/results should be nested accordions (collapsed by default)
 - The Assistant's final text response should be prominently highlighted
+
+### Tool Call Details
+For each tool call, include comprehensive details (all collapsed by default):
+- **Tool name** prominently displayed in the summary
+- **Input/Parameters**: Show the full parameters passed to the tool (file paths, commands, content)
+- **Output/Result**: Show the actual result returned by the tool
+- Format code/content in tool calls with proper syntax highlighting
+- For file edits: show old_string and new_string
+- For bash commands: show the command and its output
+- For file reads/writes: show the file path and relevant content
 
 ### Design Direction: "Terminal Noir"
 Create a dark, sophisticated interface inspired by retro terminals meets modern editorial design:
@@ -27,13 +39,16 @@ Create a dark, sophisticated interface inspired by retro terminals meets modern 
 - Use "Playfair Display" for headers (via Google Fonts)
 - Body text in "Source Sans 3"
 
-**Color Palette:**
-- Background: Deep charcoal (#0d0d0d)
-- Card backgrounds: Subtle gradient from #1a1a2e to #16213e
+**Color Palette (improved readability):**
+- Background: Deep charcoal (#0a0a0a)
+- Card backgrounds: Lighter gradient from #1e1e2e to #252540 for better contrast
 - Human messages: Accent with warm amber (#f4a261)
-- Assistant responses: Cool cyan (#4cc9f0)
-- Tool calls: Muted purple (#7b2cbf)
-- Text: Off-white (#e8e8e8)
+- Assistant responses: Brighter cyan (#5ce1f5)
+- Tool calls: Lighter purple (#9d4edd) with better text contrast
+- Primary text: Bright off-white (#f5f5f5)
+- Secondary/muted text: Light gray (#b0b0b8) - NOT too dark
+- Code text: Bright cyan (#7df3ff) on darker backgrounds
+- Tool result text: Light lavender (#d4c4e8) for readability
 
 **Visual Details:**
 - Subtle scan-line overlay effect on the background
@@ -76,10 +91,10 @@ Create a dark, sophisticated interface inspired by retro terminals meets modern 
       <time>[TIMESTAMP]</time>
     </header>
 
-    <!-- For each Human/Assistant exchange -->
-    <article class="exchange">
+    <!-- For each Human/Assistant exchange - add id for anchor linking -->
+    <article class="exchange" id="exchange-1">
       <details class="human-block" open>
-        <summary><span class="label">Human</span> <time>HH:MM</time></summary>
+        <summary><span class="label">Human</span> <time>#1</time></summary>
         <div class="human-content">
           <!-- Human message content (markdown rendered) -->
         </div>
@@ -87,15 +102,21 @@ Create a dark, sophisticated interface inspired by retro terminals meets modern 
         <div class="assistant-block">
           <div class="assistant-label">Assistant</div>
 
-          <!-- Tool calls section (collapsed) -->
+          <!-- Tool calls section (collapsed by default) -->
           <details class="tool-section">
             <summary><span class="tool-count">N tool calls</span></summary>
             <div class="tool-calls">
-              <!-- Individual tool call accordions -->
+              <!-- Individual tool call accordions with full details -->
               <details class="tool-call">
-                <summary>ToolName</summary>
-                <pre><code><!-- params --></code></pre>
-                <div class="tool-result"><!-- result --></div>
+                <summary><strong>ToolName</strong> — brief description</summary>
+                <div class="tool-input">
+                  <div class="tool-input-label">Input</div>
+                  <pre><code><!-- Full parameters: file_path, command, old_string, new_string, etc. --></code></pre>
+                </div>
+                <div class="tool-output">
+                  <div class="tool-output-label">Output</div>
+                  <pre><code><!-- Full result/output from the tool --></code></pre>
+                </div>
               </details>
             </div>
           </details>
