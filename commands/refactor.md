@@ -4,6 +4,23 @@ Apply these principles when refactoring code. The user may provide additional co
 
 ---
 
+## Scope
+
+The user can specify a scope to limit which files to refactor:
+
+- **`scope:dirty`** — Only refactor files with uncommitted changes (from `git status`). Run `git diff --name-only` and `git diff --name-only --cached` to get the list of modified/staged files.
+- **`scope:branch`** — Only refactor files that changed since the current branch diverged from the base branch. Run `git merge-base HEAD main` (or the appropriate base branch) to find the fork point, then `git diff --name-only <merge-base>..HEAD` to get changed files.
+
+When a scope is specified:
+1. Determine the relevant files using the git commands above
+2. Read those files
+3. Apply the refactoring principles below only to those files
+4. Ignore files outside the scope
+
+If no scope is specified, apply refactoring to whatever code the user indicates or the current context.
+
+---
+
 ## Core Philosophy
 
 Refactor toward **composable, reusable code** by separating concerns across clear abstraction layers. Think "functional core, imperative shell" (Gary Bernhardt).
