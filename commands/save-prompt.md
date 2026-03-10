@@ -4,32 +4,59 @@ Export the current Claude session as a beautifully formatted HTML file.
 
 ## Instructions
 
-Create an HTML file that displays this entire conversation session with the following structure and design:
+### Step 1: Find the session transcript
 
-### Structure
-1. Generate a filename with timestamp and subject summary: `YYYYmmddHHMMSS-subject-matter.html`
-   - The subject matter should be 2-3 words separated by hyphens summarizing the session's main topic
-   - Example: `20260307181500-gitignore-setup.html` or `20260307190000-ruby-refactoring.html`
-2. Save it to `~/claude/prompts/exports/` (create the directory if it doesn't exist)
-3. Use the `open` command to preview it in the browser
+Find this session's `.jsonl` transcript file in `~/.claude/projects/`. The file matching the current session ID is the one to parse. Use the most recently modified `.jsonl` file if the session ID is ambiguous.
+
+### Step 2: Determine the filename
+
+- If `$ARGUMENTS` is provided, use it as the descriptive slug
+- Otherwise, derive a 2-3 word slug from the session's main topic
+- Format: `YYYYmmddHHMMSS-subject-matter.html`
+- Examples: `20260307181500-gitignore-setup.html`, `20260307190000-ruby-refactoring.html`
+- Save to `~/claude/prompts/exports/` (create the directory if it doesn't exist)
+
+### Step 3: Parse the JSONL
+
+Read the `.jsonl` file and process each line:
+
+**Skip these entries entirely:**
+- Messages where `isMeta: true`
+- Entries of type `file-history-snapshot`
+- The **last** user message containing `/save-prompt` or `save-prompt` and all turns after it (earlier `/save-prompt` calls mid-session should be included normally — only the final triggering invocation is excluded)
+
+**For user messages:** extract text from content blocks; handle XML tags like `<bash-input>`, `<bash-stdout>` clearly
+
+**For assistant messages:** show text blocks as-is; format `tool_use` blocks with tool name and input; associate `tool_result` entries (which appear as subsequent user messages) with their preceding tool call
+
+### Step 4: Build the HTML
+
+---
 
 ### Table of Contents
 - Add a **Table of Contents** section at the top, after the header
-- List each exchange as a numbered link (e.g., `<a href="#exchange-1">`)
+- List each exchange as a numbered link (e.g., `<a href="#turn-1">`)
 - Each link text should be a **concise 5-10 word summary** of what that Human prompt was about
 - Style the TOC as a clean, scannable list with subtle styling matching the theme
-- Example entries:
-  - "Add .gitignore for sensitive Claude session data"
-  - "Convert sync script to Ruby with symlinks"
-  - "Create /save-prompt slash command"
 
 ### Content Organization
 - Each Human message is a primary accordion section (expanded by default)
-- **Add an `id` attribute to each exchange** for anchor linking (e.g., `id="exchange-1"`, `id="exchange-2"`)
-  - Users can jump to specific exchanges via URL like `file.html#exchange-5`
 - Inside each Human section, show the Assistant's response
 - Tool calls/results should be nested accordions (collapsed by default)
 - The Assistant's final text response should be prominently highlighted
+
+### Anchor Links for Sharing
+
+Every turn and every tool/result accordion must have a unique `id` attribute:
+- Conversation turns: `id="turn-{N}"` where N is the zero-based index
+- Tool calls inside a turn: `id="turn-{N}-tool-{M}"` where M is the tool index within that turn
+- Tool results: `id="turn-{N}-result-{M}"`
+
+Each turn's role label (the header bar showing "👤 Human" or "🤖 Assistant") must include an anchor link `<a href="#{id}">` in the top-right corner styled as a subtle `§` symbol that becomes visible on hover. Clicking it updates the URL hash.
+
+Add a JavaScript snippet that:
+1. On page load, if there is a hash in the URL, scrolls to and opens (`open`) the matching `<details>` element and its parent `<details>` if nested
+2. When an anchor link is clicked, updates `window.location.hash` to the element's id
 
 ### CRITICAL: Verbatim Content Preservation
 - **NEVER rewrite, summarize, paraphrase, or abbreviate** the Human's prompts — include the full, exact text as written
@@ -45,7 +72,11 @@ For each tool call, include comprehensive details (all collapsed by default):
 - **Output/Result**: Show the actual result returned by the tool
 - Format code/content in tool calls with proper syntax highlighting
 - For file edits: show old_string and new_string
-- For bash commands: show the command and its output
+- For bash commands: group the command and output in one code block with `$ ` prefix:
+  ```
+  $ pwd
+  /Users/josh
+  ```
 - For file reads/writes: show the file path and relevant content
 
 ### Design Direction: "Terminal Noir"
@@ -98,6 +129,7 @@ Create a dark, sophisticated interface inspired by retro terminals meets modern 
     /* Animation keyframes */
     /* Scan-line effect */
     /* Card styles for Human/Assistant/Tool */
+    /* Anchor link hover visibility */
   </style>
 </head>
 <body>
@@ -108,39 +140,46 @@ Create a dark, sophisticated interface inspired by retro terminals meets modern 
       <time>[TIMESTAMP]</time>
     </header>
 
-    <!-- Table of Contents - links to each exchange -->
+    <!-- Table of Contents - links to each turn -->
     <nav class="toc">
       <h2>Contents</h2>
       <ol class="toc-list">
-        <li><a href="#exchange-1">Brief summary of what prompt #1 was about</a></li>
-        <li><a href="#exchange-2">Brief summary of what prompt #2 was about</a></li>
-        <!-- ... one entry per exchange -->
+        <li><a href="#turn-0">Brief summary of what prompt #1 was about</a></li>
+        <li><a href="#turn-2">Brief summary of what prompt #2 was about</a></li>
+        <!-- ... one entry per human turn -->
       </ol>
     </nav>
 
-    <!-- For each Human/Assistant exchange - add id for anchor linking -->
-    <article class="exchange" id="exchange-1">
+    <!-- For each Human/Assistant exchange -->
+    <article class="exchange" id="turn-0">
       <details class="human-block" open>
-        <summary><span class="label">Human</span> <time>#1</time></summary>
+        <summary>
+          <span class="label">👤 Human</span>
+          <time>#1</time>
+          <a class="anchor-link" href="#turn-0" title="Link to this turn">§</a>
+        </summary>
         <div class="human-content">
           <!-- Human message content (markdown rendered) -->
         </div>
 
-        <div class="assistant-block">
-          <div class="assistant-label">Assistant</div>
+        <div class="assistant-block" id="turn-1">
+          <div class="assistant-label">
+            🤖 Assistant
+            <a class="anchor-link" href="#turn-1" title="Link to this response">§</a>
+          </div>
 
           <!-- Tool calls section (collapsed by default) -->
-          <details class="tool-section">
+          <details class="tool-section" id="turn-1-tool-0">
             <summary><span class="tool-count">N tool calls</span></summary>
             <div class="tool-calls">
               <!-- Individual tool call accordions with full details -->
-              <details class="tool-call">
+              <details class="tool-call" id="turn-1-tool-0">
                 <summary><strong>ToolName</strong> — brief description</summary>
                 <div class="tool-input">
                   <div class="tool-input-label">Input</div>
-                  <pre><code><!-- Full parameters: file_path, command, old_string, new_string, etc. --></code></pre>
+                  <pre><code><!-- Full parameters --></code></pre>
                 </div>
-                <div class="tool-output">
+                <div class="tool-output" id="turn-1-result-0">
                   <div class="tool-output-label">Output</div>
                   <pre><code><!-- Full result/output from the tool --></code></pre>
                 </div>
@@ -159,6 +198,8 @@ Create a dark, sophisticated interface inspired by retro terminals meets modern 
   </main>
   <script>
     /* Accordion behavior, smooth animations */
+    /* URL hash navigation: on load, scroll to + open matching details */
+    /* Anchor link click: update window.location.hash */
   </script>
 </body>
 </html>
@@ -166,9 +207,10 @@ Create a dark, sophisticated interface inspired by retro terminals meets modern 
 
 ### Execution
 
-1. Read through the entire conversation context available to you
-2. Build the HTML with all exchanges
-3. Write the file with the timestamped name
-4. Run: `open [filename]` to preview
+1. Find and read the session's `.jsonl` transcript from `~/.claude/projects/`
+2. Parse entries per the rules above
+3. Build the HTML with all exchanges
+4. Write the file with the timestamped name to `~/claude/prompts/exports/`
+5. Run: `open [filename]` to preview
 
 Now generate the complete HTML file with all the conversation content from this session and open it.
