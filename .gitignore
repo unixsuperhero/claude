@@ -1,6 +1,8 @@
 # Temp rsync folder (contains sensitive session data)
 claude_rsync/
 plugins/
+skills/onboarding-attributes/
+settings.local.json
 
 # Keep the temp folder structure
 !claude_rsync/.keep
