@@ -80,7 +80,6 @@
     "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '.workspace.current_dir'); current_time=$(date '+%Y-%m-%d %H:%M:%S'); if git -C \"$cwd\" rev-parse --git-dir > /dev/null 2>&1; then branch=$(git -C \"$cwd\" branch --show-current 2>/dev/null); staged=$(git -C \"$cwd\" diff --cached --name-only --no-optional-locks 2>/dev/null | wc -l | tr -d ' '); modified=$(git -C \"$cwd\" diff --name-only --no-optional-locks 2>/dev/null | wc -l | tr -d ' '); untracked=$(git -C \"$cwd\" ls-files --others --exclude-standard --no-optional-locks 2>/dev/null | wc -l | tr -d ' '); git_status=\"\"; if [ \"$staged\" -gt 0 ] || [ \"$modified\" -gt 0 ] || [ \"$untracked\" -gt 0 ]; then git_status=\" (\"; [ \"$staged\" -gt 0 ] && git_status=\"${git_status}${staged}\"; [ \"$modified\" -gt 0 ] && git_status=\"${git_status}${modified}\"; [ \"$untracked\" -gt 0 ] && git_status=\"${git_status}${untracked}\"; git_status=\"${git_status})\"; fi; git_info=\" ${branch}${git_status}\"; else git_info=\"\"; fi; printf \"%s %s%s\" \"$current_time\" \"$cwd\" \"$git_info\""
   },
   "enabledPlugins": {
-    "taches-cc-resources@taches-cc-resources": true,
     "annual-reviews@instacart": true,
     "document-skills@anthropic-agent-skills": true,
     "example-skills@anthropic-agent-skills": true,
@@ -152,7 +151,9 @@
     "weekly-summary@instacart": true,
     "wittycart@instacart": true,
     "worker-queues@instacart": true,
-    "frontend-design@claude-code-plugins": true
+    "frontend-design@claude-code-plugins": true,
+    "rca-collaborator@instacart": true,
+    "awesome-agent@instacart": true
   },
   "extraKnownMarketplaces": {
     "instacart": {
