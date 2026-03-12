@@ -44,9 +44,39 @@
       "Bash(git commit:*)",
       "Bash(git push:*)"
     ],
-    "deny": [],
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(mkfs *)",
+      "Bash(dd *)",
+      "Edit(~/.ssh/**)",
+      "Read(**/.env*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/secrets/**)",
+      "Read(**/credentials/**)",
+      "Read(~/.isc/**)",
+      "Read(~/.bento/**)",
+      "Read(~/.ssh/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.git-credentials)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.kube/**)",
+      "Read(~/.npmrc)",
+      "Read(~/.npm/**)",
+      "Read(~/.pypirc)",
+      "Read(~/.gem/credentials)",
+      "Read(~/Library/Keychains/**)"
+    ],
     "ask": [
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(isc:*)",
+      "Edit(~/.bashrc)",
+      "Edit(~/.zshrc)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
@@ -153,7 +183,8 @@
     "worker-queues@instacart": true,
     "frontend-design@claude-code-plugins": true,
     "rca-collaborator@instacart": true,
-    "awesome-agent@instacart": true
+    "awesome-agent@instacart": true,
+    "ruby-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "instacart": {
