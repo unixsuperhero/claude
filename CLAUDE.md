@@ -55,6 +55,19 @@ The metadata sidecar lives at `~/claude/index.json`.
 
 ---
 
+## File Saving
+
+NEVER save files to `/tmp`. Instead:
+- Save to `~/notes/files/` for standalone files (reports, exports, CSVs, data dumps, etc.)
+- Save somewhere else in `~/notes/` if that makes more contextual sense
+- Save to wherever the user explicitly specifies (e.g. `~/claude/prompts`, a project directory, etc.)
+
+### Index
+
+Maintain `~/notes/files/INDEX` — a plain text file, one absolute path per line, oldest at top, newest at bottom. Update it every time a file is added to `~/notes/files/`.
+
+---
+
 ## Resource Tracking
 
 Whenever a resource is created or discovered, track it with hiiro immediately:
