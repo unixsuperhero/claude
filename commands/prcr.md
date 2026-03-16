@@ -34,13 +34,23 @@ Examples:
 **Workflow:**
 
 1. Parse the PR number and repository from $ARGUMENTS
-2. Fetch PR metadata using `mcp__github__pull_request_read` method `get`
-3. Use `gh pr checkout PRNUMBER` in /Users/josh/work/code-review/main worktree to get local copy
-4. Fetch commits using `mcp__github__pull_request_read` method `get` to determine commit count
-5. Analyze changes for each commit returned by the API
+
+2. **In parallel** (run all of these at the same time — do NOT wait for one before starting the next):
+   - Fetch PR metadata: `gh pr view PRNUMBER --repo OWNER/REPO --json number,title,author,state,body,baseRefName,headRefName,labels,reviews,reviewRequests,additions,deletions,changedFiles,commits,url`
+   - Fetch unified diff: `gh pr diff PRNUMBER --repo OWNER/REPO`
+   - List changed files: `gh pr view PRNUMBER --repo OWNER/REPO --json files`
+
+3. **Fast path check**: If the PR has <= 8 changed files AND <= 400 lines total (additions+deletions), skip the local checkout entirely and proceed directly to analysis using only the diff. This is the fast path.
+
+4. **Full path only** (skip if fast path): Run `gh pr checkout PRNUMBER` in the /Users/josh/work/code-review/main worktree to get a local copy for deeper context. Only do this for larger/more complex PRs where reading surrounding code is necessary.
+
+5. Analyze the unified diff holistically (not commit-by-commit — analyze the complete change as a whole). The unified diff from step 2 contains all changes. Focus the review on the diff output directly.
+
 6. Generate comprehensive code review HTML report
+
 7. Save report to /Users/josh/notes/prs/ directory
-8. then open it with the open command like `open report.html`
+
+8. Open it with `open report.html`
 
 **Review Report Output:**
 
@@ -51,7 +61,6 @@ The generated HTML report should include:
 - Summary of what the PR does
 - Praise section (good practices observed)
 - Issues by priority (Critical, Important, Suggestion) with file paths and line numbers
-- Commit-by-commit analysis
 - Overall assessment
 
 **Design & Styling Requirements:**
@@ -117,3 +126,21 @@ Use this refined technical editorial aesthetic with excellent accessibility:
 
 - Linting or formatting issues (handled by CI)
 - Minor stylistic preferences
+
+<!--
+ORIGINAL WORKFLOW (pre-optimization):
+1. Parse PR number/repo
+2. mcp__github__pull_request_read get (metadata)
+3. gh pr checkout in code-review worktree (always)
+4. mcp__github__pull_request_read get again (redundant - same as step 2)
+5. Analyze each commit sequentially (N sequential API calls)
+6. Generate report
+7. Save + open
+
+OPTIMIZATIONS MADE:
+- Merged redundant steps 2+4 (were identical API calls)
+- Parallelized metadata fetch + diff fetch + files list (all independent)
+- Replaced sequential per-commit analysis with single unified diff review
+- Added fast path: skip checkout entirely for small PRs (<= 8 files, <= 400 lines)
+- Removed commit-by-commit section from report (replaced with holistic analysis)
+-->

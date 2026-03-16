@@ -552,9 +552,69 @@ end
 class Prompt; end  # Or Hiiro::Prompt if that's the project convention
 ```
 
+### Constructor Rules
+
+**Constructors should only store their arguments.** No file I/O, no network calls, no parsing, no creating files or objects from arguments — just `@var = var`.
+
+```ruby
+# Bad: constructor has side effects
+class EditorInput
+  def initialize(hiiro, prefix:, ext:, content: nil)
+    @hiiro   = hiiro
+    @tmpfile = Tempfile.new([prefix, ext])  # side effect: creates a file
+    @tmpfile.write(content) if content      # side effect: writes to disk
+    @tmpfile.close                          # side effect: closes the file
+  end
+end
+
+# Good: constructor stores only what it received
+class InputFile
+  attr_reader :hiiro, :type, :content, :append, :prefix
+
+  def initialize(hiiro:, type:, content: nil, append: false, prefix: 'edit-')
+    @hiiro   = hiiro
+    @type    = type
+    @content = content
+    @append  = append
+    @prefix  = prefix
+  end
+
+  # Side-effecty setup lives in a lazy instance method instead
+  def tmpfile
+    @tmpfile ||= begin
+      tf = Tempfile.new([prefix, EXTENSIONS.fetch(type)])
+      tf.write(content) if content
+      tf.close
+      tf
+    end
+  end
+end
+```
+
+**Always define `attr_reader` for every constructor argument.** Even if you don't expect to read them back today, `attr_reader` keeps the object inspectable and self-documenting. When an object gets passed to another class, the receiver has no access to the original local variables — only the object's methods. Without `attr_reader`, context is lost:
+
+```ruby
+# Bad: object arrives in another class, context is gone
+class SomeService
+  def process(input_file)
+    input_file.edit    # works
+    input_file.type    # NoMethodError — can't see what type it is
+    input_file.prefix  # NoMethodError — can't see what prefix was used
+  end
+end
+
+# Good: all constructor args are readable
+class InputFile
+  attr_reader :hiiro, :type, :content, :append, :prefix
+  # ...
+end
+```
+
 ### Alternate Constructors
 
-Classes that need to be constructed from different sources should provide **alternate constructors** with the `from_` prefix:
+Classes that need to be constructed from different sources should provide **alternate constructors** with the `from_` prefix (for different input sources) or **type-specific constructors** when a class behaves differently based on type.
+
+**`from_` prefix for different input sources:**
 
 ```ruby
 class Prompt
@@ -581,10 +641,67 @@ prompt = Prompt.from_text("---\ntitle: Hello\n---\nContent")
 prompt = Prompt.new(already_parsed_doc)
 ```
 
+**Type-specific constructors when behavior varies by type:**
+
+When a class acts differently for different types (different file extensions, different parsers, different defaults), give each type its own named constructor instead of a generic `type:` argument. The type then drives behavior throughout the class — extension, parsing, formatting — without any `if type == :foo` branching at the call site:
+
+```ruby
+# Okay: generic constructor with type flag — caller must know the magic values
+file = InputFile.new(hiiro: h, type: :yaml, content: data.to_yaml)
+
+# Better: type-specific constructors — self-documenting, no magic values at call site
+file = InputFile.yaml_file(hiiro: h, content: data.to_yaml)
+file = InputFile.md_file(hiiro: h, content: frontmatter)
+```
+
+```ruby
+class InputFile
+  EXTENSIONS = { yaml: '.yml', md: '.md' }.freeze
+
+  def self.yaml_file(hiiro:, content: nil, **opts)
+    new(hiiro: hiiro, type: :yaml, content: content, **opts)
+  end
+
+  def self.md_file(hiiro:, content: nil, **opts)
+    new(hiiro: hiiro, type: :md, content: content, **opts)
+  end
+
+  attr_reader :hiiro, :type, :content, :append, :prefix
+
+  def initialize(hiiro:, type: :md, content: nil, append: false, prefix: 'edit-')
+    @hiiro   = hiiro
+    @type    = type
+    @content = content
+    @append  = append
+    @prefix  = prefix
+  end
+
+  def tmpfile
+    @tmpfile ||= begin
+      tf = Tempfile.new([prefix, EXTENSIONS.fetch(type)])
+      tf.write(content) if content
+      tf.close
+      tf
+    end
+  end
+
+  # Type-driven parsing: returns the right object for the type
+  #   :yaml → Hash or Array
+  #   :md   → FrontMatterParser::Document (call .front_matter, .content)
+  def parsed_file
+    @parsed_file ||= case type
+    when :yaml then YAML.safe_load_file(tmpfile.path) rescue nil
+    when :md   then FrontMatterParser::Parser.parse_file(tmpfile.path)
+    end
+  end
+end
+```
+
 This pattern:
-- Keeps `initialize` simple (takes the canonical form)
+- Keeps `initialize` simple and uniform — it always stores args
 - Makes construction context explicit in the method name
-- Allows the class to be easily used in different contexts
+- The type drives behavior in one place (`EXTENSIONS`, `parsed_file`) rather than scattered across call sites
+- `attr_reader` on all args keeps the object inspectable anywhere it travels
 
 ---
 
@@ -672,9 +789,72 @@ end
 
 Value objects make the implicit explicit — they name concepts, enforce invariants, and provide a home for related behavior.
 
+### Layered Value Objects: Item + Collection
+
+When a service has several private methods that cluster around "look up and interpret records by key", extract **two** classes: one for the individual record (wraps the raw AR/data object), one for the collection (owns the index and query).
+
+```ruby
+# Bad: service has 3 private methods that together form a subsystem
+class SomeService
+  def thing_value(name)
+    index = build_index
+    request = index[name]
+    request&.deserialized_raw_value
+  end
+
+  def thing_present?(name)
+    request = build_index[name]
+    return false if request.nil?
+    value = request.deserialized_raw_value
+    return true if value == false  # special case!
+    value.present?
+  end
+
+  def build_index
+    @index ||= records.order(:created_at).index_by(&:name)
+  end
+end
+
+# Good: item value object + collection value object
+class Item
+  def initialize(record) = @record = record
+
+  def name  = @record&.name
+  def value = @record&.deserialized_raw_value
+
+  def present?
+    value == false || value.present?  # domain rule lives here
+  end
+end
+
+class ItemCollection
+  def initialize(records)
+    @index = records.order(:created_at).each_with_object({}) do |r, h|
+      item = Item.new(r)
+      h[item.name] = item
+    end
+  end
+
+  def value(name)   = @index[name]&.value
+  def present?(name) = @index[name]&.present? || false
+end
+```
+
+**Why this decomposition works:**
+- Domain logic (what "present" means, special-cased `false`) lives on the item object, not the collection
+- The collection handles querying/filtering and delegates semantics to items — it never calls raw AR methods like `deserialized_raw_value` directly
+- Each class is independently testable: item tests cover the `false` edge case, collection tests cover lookup
+- `|| false` on `present?` is needed because safe navigation `&.` returns `nil` for missing keys, but a predicate should return `false`, not `nil`
+
+**Build the index with `each_with_object`, not `index_by`** — `index_by` stores raw records; `each_with_object` lets you wrap them as value objects during construction so the index holds typed objects throughout.
+
 ---
 
-## 9. DRY: Reuse Before Extract
+## 9. DRY: Don't Repeat Yourself
+
+DRY has two sides: **don't create what already exists**, and **don't keep what exists twice**.
+
+### Search Before Extracting
 
 **Before creating something new, search for something that already exists.**
 
@@ -708,6 +888,83 @@ end
 
 Search by **behavior** (what it does), not just by name — the existing method might be named differently than what you'd call it.
 
+### Extract to Eliminate Duplication
+
+**When the same logic appears in two or more places, extract it.**
+
+Duplication hides in plain sight. Look for copy-paste blocks, parallel conditionals, and methods that only differ in a single variable. Once you've found duplication, extract a shared method, helper, or class.
+
+```ruby
+# Bad: duplicated option-parsing logic in each subcommand
+add_subcmd(:split) { |*args|
+  opts = parse_opts(args)
+  size = opts.size || '40'
+  size += '%' if opts.percent
+  cmd = opts.ignore ? fire_command(opts) : start_command(opts)
+  tmux_client.split_window(size: size, command: cmd)
+}
+
+add_subcmd(:vsplit) { |*args|
+  opts = parse_opts(args)
+  size = opts.size
+  size += '%' if size && opts.percent
+  cmd = opts.ignore ? fire_command(opts) : start_command(opts)
+  tmux_client.vsplit_window(size: size, command: cmd)
+}
+
+# Good: extract the shared logic
+def resolved_command(opts)
+  opts.ignore ? fire_command(opts) : start_command(opts)
+end
+
+add_subcmd(:split) { |*args|
+  opts = parse_opts(args)
+  size = opts.size || '40'
+  size += '%' if opts.percent
+  tmux_client.split_window(size: size, command: resolved_command(opts))
+}
+
+add_subcmd(:vsplit) { |*args|
+  opts = parse_opts(args)
+  size = opts.size
+  size += '%' if size && opts.percent
+  tmux_client.vsplit_window(size: size, command: resolved_command(opts))
+}
+```
+
+**Signs of duplication to look for:**
+- The same 2+ lines appear in multiple methods (copy-paste)
+- Parallel `if/else` or `case` blocks with the same structure in different methods
+- Methods that are identical except for one variable — the variable should become a parameter
+- The same transformation or formatting applied in multiple places
+
+**The extraction threshold:** Two occurrences is usually enough to extract. One occurrence: leave it inline. Three or more: extract immediately and look for more.
+
+### When NOT to DRY
+
+Not all similar-looking code is duplication. **Incidental similarity** — two things that happen to look alike now but represent different concepts — should stay separate. Forcing them into a shared abstraction creates coupling that makes future changes harder.
+
+```ruby
+# These look similar but represent different concepts — don't merge them
+def format_task_name(name)
+  name.downcase.gsub(/\s+/, '-')
+end
+
+def format_window_name(name)
+  name.downcase.gsub(/\s+/, '-')
+end
+
+# If task naming and window naming ever diverge, you'll be glad they're separate.
+# Only extract if they truly represent the same rule, not just the same accident.
+```
+
+**Ask before extracting:**
+- Do these represent the **same concept**, or just the same implementation today?
+- If one changes, should the other change too?
+- Would a name for the extracted method clearly describe both usages?
+
+If you can't answer yes to all three, leave them separate.
+
 ---
 
 ## Refactoring Checklist
@@ -731,10 +988,25 @@ When reviewing code, ask:
 15. **Are there multiple top-level classes in one file?** Extract each to its own file
 16. **Is this inner class used throughout the codebase?** Promote to an accessible namespace
 17. **Does this class need to be constructed from different sources?** Add `from_*` alternate constructors
+17a. **Does this constructor do anything other than store arguments?** Move side effects (file I/O, object creation, parsing) into lazy instance methods
+17b. **Does `initialize` have `attr_reader` for every argument?** Add them — even if you don't need them today, they keep the object inspectable when it travels to other classes
+17c. **Does a class behave differently based on a `type:` argument?** Replace the generic constructor with type-specific named constructors (e.g. `yaml_file`, `md_file`) and let the type drive behavior internally
 18. **Is this using inheritance?** Refactor to use composition instead
 19. **Is this service object doing heavy lifting?** Extract to mid/low-level classes and delegate
 20. **Are primitives being passed around to represent a domain concept?** Extract a value object or domain object
 21. **Before extracting a method, did you search for an existing method that already does this?**
+22. **Does the same 2+ line block appear in multiple methods?** Extract to a shared private method or helper
+23. **Are there parallel methods that differ only in one variable?** Make the variable a parameter and unify them
+24. **Does similar-looking code represent the same concept, or just the same accident?** Only DRY up true conceptual duplication — leave incidental similarity alone
+25. **Are there 3+ private methods clustered around "look up and interpret a record by key"?** Extract an item value object (wraps one record, owns domain semantics like `present?`) + a collection value object (owns the index, delegates to item). Build the index with `each_with_object` wrapping items, not `index_by` storing raw records. Collection methods call item methods — never raw AR methods directly.
+26. **Are raw hashes being passed around instead of a domain object that already exists?** If a class exists that models the same data (e.g., `Pr`, `Task`, `User`), promote callers to use it. To do this:
+    - Add `attr_accessor` for every field present in the hash but missing from the class
+    - Add a `from_hash` (or `from_pinned_hash`, `from_gh_json`, etc.) alternate constructor using the `from_` naming convention
+    - Add a `to_h` (or `to_pinned_h`) serialization method for round-tripping back to storage format
+    - Move any class-level helper methods (e.g., `repo_from_url`, `summarize_checks`) onto the domain class as class methods, since the class owns the data they operate on
+    - Update all callers to use method access (`pr.title`) instead of string-key access (`pr['title']`)
+    - Update `save_*` methods to serialize via the domain object's `to_h` method
+    - Update `load_*` / factory methods to return typed objects instead of raw hashes
 
 ---
 

@@ -72,8 +72,6 @@
     ],
     "ask": [
       "Bash(rm:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
       "Bash(isc:*)",
       "Edit(~/.bashrc)",
       "Edit(~/.zshrc)"
@@ -84,12 +82,34 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PARENT_ARGS=$(ps -p $PPID -o args= 2>/dev/null); if ! echo \"$PARENT_ARGS\" | grep -q -- \"--team-name\"; then echo \"$TMUX_PANE\" > /tmp/claude_main_pane; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PARENT_ARGS=$(ps -p $PPID -o args= 2>/dev/null); if ! echo \"$PARENT_ARGS\" | grep -q -- \"--team-name\"; then SAVED_PANE=$(cat /tmp/claude_main_pane 2>/dev/null); if [ -n \"$SAVED_PANE\" ]; then tmux select-pane -t \"$SAVED_PANE\"; fi; fi"
+          }
+        ]
+      }
+    ],
     "Notification": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "MSG=$(cat | jq -r '.message // \"Needs input\"'); h alert -t 'Claude Code' -m \"$MSG\" -s k -c \"echo switchc -t '$TMUX_PANE' | pbcopy\""
+            "command": "MSG=$(cat | jq -r '.message // \"Needs input\"'); PARENT_ARGS=$(ps -p $PPID -o args= 2>/dev/null); if ! echo \"$PARENT_ARGS\" | grep -q -- \"--team-name\"; then h alert -t 'Claude Code' -m \"$MSG\" -s k -c \"echo switchc -t '$TMUX_PANE' | pbcopy\"; h notify push -t info \"$MSG\"; fi"
           }
         ]
       }
@@ -99,7 +119,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "h alert -t 'Claude Code' -m 'Work completed' -s b -c \"echo switchc -t '$TMUX_PANE' | pbcopy\""
+            "command": "PARENT_ARGS=$(ps -p $PPID -o args= 2>/dev/null); if ! echo \"$PARENT_ARGS\" | grep -q -- \"--team-name\"; then h alert -t 'Claude Code' -m 'Work completed' -s b -c \"echo switchc -t '$TMUX_PANE' | pbcopy\"; h notify push -t success 'Work completed'; fi"
           }
         ]
       }

@@ -10,6 +10,8 @@ description: >
 
 # Hiiro
 
+> **For complex hiiro operations** (worktree management, task isolation, ensuring changes are in the correct worktree), use the `hiiro-expert` agent via the Agent tool with `subagent_type: 'hiiro-expert'`.
+
 Hiiro is a Ruby CLI framework installed as a gem. All commands start with `h`.
 Config lives in `~/.config/hiiro/`. Tasks, queues, and PRs are the three core
 concepts you'll interact with daily.
@@ -402,3 +404,10 @@ h q ls          # → h queue ls
 h pr tr         # → h pr track
 h pr upd        # → h pr update
 ```
+
+# RULES
+
+ANYTIME YOU `h task start` or `h subtask start` always use sparse checkout
+the group you should probably use is `default` so
+
+`h task start TASKNAME -s default`
