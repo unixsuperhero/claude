@@ -35,7 +35,7 @@ Examples:
 
 1. Parse the PR number and repository from $ARGUMENTS
 
-2. **In parallel** (run all of these at the same time — do NOT wait for one before starting the next):
+2. **In parallel** (run all of these at the same time, use /agent-party — do NOT wait for one before starting the next):
    - Fetch PR metadata: `gh pr view PRNUMBER --repo OWNER/REPO --json number,title,author,state,body,baseRefName,headRefName,labels,reviews,reviewRequests,additions,deletions,changedFiles,commits,url`
    - Fetch unified diff: `gh pr diff PRNUMBER --repo OWNER/REPO`
    - List changed files: `gh pr view PRNUMBER --repo OWNER/REPO --json files`
@@ -51,6 +51,24 @@ Examples:
 7. Save report to /Users/josh/notes/prs/ directory
 
 8. Open it with `open report.html`
+
+9. Upload the report to Pastry and capture the URL:
+   ```bash
+   PASTRY_JSON=$(pastry create <report-file> --title "PR #PRNUMBER Code Review" --json)
+   PASTRY_URL=$(echo "$PASTRY_JSON" | jq -r '.url // "https://pastry.instacart.com/\(.slug)"')
+   ```
+   Use the actual report file path saved in step 7 and the PR number parsed in step 1.
+
+10. Post a comment on the PR with a disclosure and link to the report:
+    ```bash
+    gh pr comment PRNUMBER --repo OWNER/REPO --body "$(cat <<'EOF'
+    > 🤖 **Auto-generated comment** — This code review report was automatically generated and posted by Claude Code. It has not been manually reviewed.
+
+    📋 **[Full review report](PASTRY_URL)**
+    EOF
+    )"
+    ```
+    Substitute `PRNUMBER`, `OWNER/REPO`, and `PASTRY_URL` with the actual values.
 
 **Review Report Output:**
 

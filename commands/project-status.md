@@ -13,7 +13,9 @@ This command:
 2. Gathers all tasks and their relationships
 3. Reads work logs for context on each task
 4. Produces a markdown report grouped by project, PRs in merge order
-5. Converts to HTML via `mdoc` and opens in browser
+5. Give reports in the context of the project and what is left to do, not just
+   the git/pr aspect.  look in the relevant docs in ~/notes/claude-docs/
+6. Converts to HTML via `mdoc` and opens in browser
 
 ---
 
