@@ -97,6 +97,22 @@ end
 
 ---
 
+## The 5 Rules of Separation
+
+These are the fundamental things that should not live together — not in the same method, and usually not in the same class or file.
+
+1. **Separate Framework from Your App** — Framework code handles routing, HTTP, lifecycle, etc. Your code handles your problem. Mixing them makes both harder to test and change.
+
+2. **Separate Business Logic from Application Logic** — Business rules (pricing, eligibility, validation) change frequently as requirements evolve. Application logic (wiring, orchestration, workflow) should rarely change. Changing one should never require touching the other — mixing them multiplies the chance of introducing bugs with every business rule update.
+
+3. **Separate Levels of Abstraction** — Low-level data manipulation doesn't belong next to high-level control flow. Each method should operate at one altitude. (See [§3 Levels of Abstraction](#3-levels-of-abstraction) and [§5 Don't Mix Abstraction Levels](#5-dont-mix-abstraction-levels).)
+
+4. **Separate Data from Behavior** — You shouldn't define or look up data in the same place you use it. Data should be declared or fetched once and passed to behavior; behavior shouldn't reach out to find its own inputs.
+
+5. **Separate Responsibilities** — Each class/method should have one reason to change. If you can name two distinct reasons a class might need to be modified, it has two responsibilities and should be split.
+
+---
+
 ## 1. Data-First
 
 **Separate data from behavior.**
