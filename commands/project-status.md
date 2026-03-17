@@ -262,3 +262,6 @@ This generates styled HTML, updates `~/claude/index.html`, and opens the report 
 - Always show the actual check names that are failing, not just "N checks failed".
 - The prompts section must be copy-paste ready — include the exact `h task switch` to get to the right context first.
 - Merge order is a suggestion, not a strict dependency graph — mark it clearly as "suggested order".
+- ALWAYS include a blank link between markdown element types when generating
+  markdown.   Meaning, a blank line between a paragraph and a bulleted list.  a
+  blank line between a head and a paragraph, etc.

@@ -1,23 +1,26 @@
 ---
-description: Diagnose PR build failures and return fix plan for plan mode
+description: Diagnose PR build failures, classify by relatedness, apply fixes, and push
 ---
 
 # /fix-pr
 
-Diagnose all PR build failures and produce an actionable fix plan.
+Diagnose PR build failures in $ARGUMENTS, classify each as related or unrelated to your changes, apply the fixes, and push.
 
 ## Workflow Overview
 
 | Step | Action | Tool |
 |------|--------|------|
 | 0 | Get failed checks | `gh pr checks` |
-| 1 | Parse Buildkite URLs | Extract org/pipeline/build |
-| 2 | Get failed jobs | `mcp__buildkite__get_build` |
-| 3 | Parallel analysis | Launch `buildkite-analyzer` agents |
-| 4 | Collect results | `TaskOutput` |
-| 5 | Synthesize | Combine results into fix plan |
-| 6 | Select fixes | `AskUserQuestion` |
-| 7 | Local verification | `/lint`, `/test`, `pesto update` |
+| 1 | Fetch PR diff for relatedness | `gh pr diff` |
+| 2 | Parse Buildkite URLs | Extract org/pipeline/build |
+| 3 | Verify Buildkite MCP | `mcp__buildkite__user_token_organization` |
+| 4 | Parallel analysis | Launch `buildkite-analyzer` agents |
+| 5 | Collect results | `TaskOutput` |
+| 6 | Synthesize with relatedness | Classify RELATED vs UNRELATED |
+| 7 | Select fixes | `AskUserQuestion` |
+| 8 | Apply fixes | Read + Edit tool |
+| 9 | Local verification | Auto-detect commands |
+| 10 | Commit and push | Confirm with user |
 
 ---
 
@@ -27,148 +30,135 @@ Diagnose all PR build failures and produce an actionable fix plan.
 gh pr checks --json name,state,link | jq '[.[] | select(.state == "FAILURE")]'
 ```
 
-**No PR?** Exit with: "No PR found for current branch. Push changes or create PR first."
+Also capture:
+```bash
+PR_NUMBER=$(gh pr view --json number -q .number)
+PR_URL=$(gh pr view --json url -q .url)
+```
 
-**No failures?** Exit with: "All checks passing - no failures to diagnose."
+**No PR?** Exit: "No PR found for current branch. Push changes or create PR first."
+
+**No failures?** Exit: "All checks passing — nothing to fix."
 
 ---
 
-## Step 1: Parse Buildkite URLs
+## Step 1: Fetch PR Diff for Relatedness
+
+```bash
+gh pr diff --name-only          # changed file paths
+gh pr diff | head -c 100000     # diff content (capped)
+```
+
+Keep both in context — used in Step 6 to classify failures.
+
+---
+
+## Step 2: Parse Buildkite URLs
 
 Extract from pattern: `buildkite.com/{org}/{pipeline}/builds/{number}`
 
-Example:
 ```
 https://buildkite.com/instacart/griffin/builds/7967
-→ org_slug: instacart
-→ pipeline_slug: griffin
-→ build_number: 7967
+→ org_slug: instacart, pipeline_slug: griffin, build_number: 7967
 ```
 
-Skip non-Buildkite URLs (GitHub Actions, etc.) - note them as "non-Buildkite check".
+Skip non-Buildkite URLs (GitHub Actions, etc.) — note them as "non-Buildkite check".
 
 ---
 
-## Step 2: Get Failed Jobs
-
-For each failed Buildkite build:
+## Step 3: Verify Buildkite MCP
 
 ```
-mcp__buildkite__get_build
-- org_slug, pipeline_slug, build_number
-- detail_level: "summary"
-- job_state: "failed,broken,canceled,timed_out"
+mcp__buildkite__user_token_organization
 ```
 
-Extract for each failed job:
-- job_id (UUID)
-- job_name
-- state
-
-**Warning threshold:** If >5 failed jobs total, use AskUserQuestion:
-
-```json
-{
-  "questions": [{
-    "question": "Found X failed jobs. How would you like to proceed?",
-    "header": "Analysis",
-    "options": [
-      {
-        "label": "Analyze all (Recommended)",
-        "description": "Investigate all X failures for complete diagnosis"
-      },
-      {
-        "label": "Analyze first 5 only",
-        "description": "Faster analysis, may miss related failures"
-      },
-      {
-        "label": "Cancel",
-        "description": "Exit without analysis"
-      }
-    ],
-    "multiSelect": false
-  }]
-}
-```
-
-If "Cancel" selected, exit with: "Analysis cancelled by user."
+If unavailable:
+> **Buildkite MCP not configured.** Run:
+> ```bash
+> claude mcp add --transport http buildkite https://mcp.buildkite.com/mcp/readonly
+> ```
+> Then run `/mcp` in Claude Code to authorize.
 
 ---
 
-## Step 3: Parallel Analysis
+## Step 4: Parallel Analysis
 
 Launch `buildkite-analyzer` agents **in parallel** using Task tool:
 
 ```
-For each failed job, use Task tool with:
-- subagent_type: "buildkite-analyzer"
+For each unique Buildkite build, use Task tool with:
+- subagent_type: "pr:buildkite-analyzer"
 - run_in_background: true
 - prompt: |
-    org: {org_slug}
-    pipeline_slug: {pipeline_slug}
-    build_number: {build_number}
-    job_uuid: {job_id}
-    job_name: "{job_name}"
+    Analyze this failed Buildkite build:
+    - org_slug: {org}
+    - pipeline_slug: {pipeline}
+    - build_number: {number}
+    - build_url: https://buildkite.com/{org}/{pipeline}/builds/{number}
+
+    Return a structured JSON diagnosis with failure type classification.
 ```
 
 **Critical:** Launch ALL agents in a single message with multiple Task tool calls.
 
 ---
 
-## Step 4: Collect Results
-
-Use `TaskOutput` to wait for each agent:
+## Step 5: Collect Results
 
 ```
 TaskOutput
 - task_id: {agent_id}
 - block: true
-- timeout: 60000
+- timeout: 120000
 ```
 
 Parse JSON output from each agent.
 
 ---
 
-## Step 5: Synthesize Fix Plan
+## Step 6: Synthesize with Relatedness
 
-Combine all agent outputs into actionable plan.
+Combine all agent outputs. For each failure, use the PR diff and changed file list to classify:
+
+**RELATED if any apply:**
+- The failing file appears in the changed files list
+- The error references a symbol/method/type/field added or modified in the diff (even if the failing file itself wasn't changed — e.g. a test for a model breaks when the PR adds a required field)
+- Compilation or type error about something defined in the diff
+- The test exercises a code path visibly changed by the diff
+
+**UNRELATED if:**
+- The failing file has no connection to changed files and the error references nothing in the diff
+- Infrastructure failure (timeout, network, OOM) with no code-level error
+- Error pattern clearly predates the PR
+
+When in doubt, classify as **RELATED**. Better to offer an unnecessary fix than silently skip a real breakage.
 
 ### Output Format
 
 ```markdown
-## PR Build Failures
+## PR #${PR_NUMBER} Build Failures
 
 ### Summary
-- X failures across Y builds
-- Types: [unique failure_types]
+- Failed checks: ${FAILED_COUNT}
+- Related (fixable): ${RELATED_COUNT}
+- Unrelated (skipped): ${UNRELATED_COUNT}
 
-### Failures
+### Failures to Fix
 
 | Job | Type | Root Cause | Location |
 |-----|------|------------|----------|
-| {job_name} | {failure_type} | {root_cause} | {file_location} |
+| {job_name} | {failure_type} | {root_cause} | {file:line} |
 
 ### Fix Plan
 
-1. [ ] Edit `{file}`: {suggested_fix}
-2. [ ] Edit `{file2}`: {suggested_fix2}
-3. [ ] Run: `{verification_command}`
+1. [ ] `{file}:{line}` — {suggested_fix}
+2. [ ] `{file2}:{line}` — {suggested_fix2}
 
-### Verification
+### Unrelated Failures (for reference)
 
-After applying fixes, run Step 7 local verification:
-```bash
-# Required verification (run in order)
-pesto update           # Update BUILD files
-make fmt               # Format code
-/lint                  # Fix lint errors repo-wide
-/test                  # Run tests for affected packages
-
-# Then push and monitor
-git add -A && git commit -m "Fix PR build failures" && git push
-gh pr checks --watch
-```
+| Job | Type | Why Unrelated |
+|-----|------|---------------|
+| {job_name} | {failure_type} | {reason} |
 ```
 
 ### Synthesis Rules
@@ -176,195 +166,119 @@ gh pr checks --watch
 | Pattern | Action |
 |---------|--------|
 | Same file in multiple failures | Group into single fix item |
-| compilation_error | Prioritize first (blocks other tests) |
-| infrastructure failures | Note as "Re-run may resolve" |
+| `compilation_error` | Prioritize first (blocks other tests) |
+| Infrastructure/timeout failures | Note as "Re-run may resolve", exclude from fix list |
 | All failures have low confidence | Suggest manual investigation |
-| Any code changes applied | Include Step 7 verification in fix plan |
 
 ---
 
-## Step 6: Interactive Fix Selection
+## Step 7: Interactive Fix Selection
 
-After displaying the fix plan, use AskUserQuestion to let the user select which fixes to address.
+### Infrastructure/Timeout Check
 
-### 6.1 Group Fixes by Category
+If **all** related failures are `infrastructure` or `timeout`:
+- Skip fix selection entirely
+- Display: "All related failures are infrastructure or timeout issues — these cannot be fixed with code changes."
+- Show each failure's Buildkite URL for manual retry
+- Done.
 
-Group fixes into categories:
+If **some** are infrastructure/timeout, exclude them from the selection list and note: "Note: {N} infrastructure/timeout failure(s) not included — retry from the Buildkite dashboard if needed."
 
-| Category | Patterns |
-|----------|----------|
-| Build Errors | `compilation_error`, `dependency` |
-| Test Failures | `test_failure` |
-| Lint Issues | `lint_error` |
-| Infrastructure | `infrastructure`, `timeout` |
+### Fix Selection UI
 
-### 6.2 Present Fix Selection
-
-**If ≤4 total fixes**, present individually:
+Build options dynamically from failure types actually present:
 
 ```json
 {
   "questions": [{
     "question": "Which fixes would you like to apply?",
-    "header": "Fixes",
+    "header": "Fix Selection",
     "options": [
-      {
-        "label": "All fixes (Recommended)",
-        "description": "Apply all X suggested fixes"
-      },
-      {
-        "label": "[Build] Fix undefined: NewFetcher",
-        "description": "controllers/query/fetcher.go:42"
-      },
-      {
-        "label": "[Test] Fix TestFetch assertion",
-        "description": "controllers/query/fetcher_test.go:89"
-      },
-      {
-        "label": "[Lint] Fix hugeParam",
-        "description": "controllers/query/config.go:15"
-      }
-    ],
-    "multiSelect": true
-  }]
-}
-```
-
-**If >4 total fixes**, group by category:
-
-```json
-{
-  "questions": [{
-    "question": "Which fix categories would you like to apply?",
-    "header": "Fixes",
-    "options": [
-      {
-        "label": "All categories (Recommended)",
-        "description": "Apply all X fixes across all categories"
-      },
-      {
-        "label": "Build Errors (X fixes)",
-        "description": "Fix compilation and dependency issues first"
-      },
-      {
-        "label": "Lint Issues (Y fixes)",
-        "description": "Fix lint errors (hugeParam, etc.)"
-      },
-      {
-        "label": "Test Failures (Z fixes)",
-        "description": "Fix failing test assertions"
-      }
-    ],
-    "multiSelect": true
-  }]
-}
-```
-
-### 6.3 Handle Selection
-
-| Selection | Action |
-|-----------|--------|
-| "All fixes" / "All categories" | Apply all suggested fixes |
-| Specific fixes/categories | Apply only selected fixes |
-| No selection (empty) | Exit with: "No fixes selected. Review the plan and run `/fix-pr` again when ready." |
-| "Other" (custom) | Ask user to describe which fixes to apply |
-
-### 6.4 Infrastructure Failures
-
-If any failures are categorized as `infrastructure`:
-
-```json
-{
-  "questions": [{
-    "question": "Infrastructure failures detected. How to handle?",
-    "header": "Infra",
-    "options": [
-      {
-        "label": "Re-run CI (Recommended)",
-        "description": "These often resolve on retry"
-      },
-      {
-        "label": "Skip infrastructure issues",
-        "description": "Focus on code issues only"
-      },
-      {
-        "label": "Investigate anyway",
-        "description": "Analyze infrastructure logs for patterns"
-      }
+      { "label": "Fix all ({N} issues)", "description": "Apply all recommended fixes" },
+      { "label": "Test failures only ({N})", "description": "..." },
+      { "label": "Lint/format only ({N})", "description": "..." },
+      { "label": "Compilation errors only ({N})", "description": "..." },
+      { "label": "Skip fixes — just show the analysis", "description": "..." }
     ],
     "multiSelect": false
+  }]
+}
+```
+
+Only include category options for types actually present. If only one fixable type exists, offer just "Fix all" and "Skip fixes".
+
+**If ≤4 total fixes**, list each fix individually (multiSelect: true) instead of grouping by category.
+
+---
+
+## Step 8: Apply Fixes
+
+For each fix in the selected category, in priority order:
+1. Compilation errors
+2. Type errors
+3. Test failures
+4. Lint errors
+5. Format errors
+
+**For each fix:**
+1. **Read** the relevant file
+2. **Apply** using the Edit tool
+3. **Track** what was changed
+
+---
+
+## Step 9: Local Verification
+
+After applying fixes, detect verification commands in this priority order:
+
+1. `.isc/pipeline.yml` — parse for lint/test/build steps matching failure types
+2. `Makefile` — find `.PHONY` targets: `test`, `fmt`, `lint`, `build`
+3. `CLAUDE.md` — extract documented verification commands
+4. `.claude/` — check for `/lint`, `/test` commands
+
+**No detection found:**
+```json
+{
+  "questions": [{
+    "question": "No local verification commands detected. How would you like to proceed?",
+    "header": "Verification",
+    "options": [
+      { "label": "Push and let CI re-run (Recommended)", "description": "Commit changes and push" },
+      { "label": "Skip — I'll verify manually", "description": "Don't push, I'll handle it" }
+    ]
+  }]
+}
+```
+
+**Detection found:**
+```json
+{
+  "questions": [{
+    "question": "How would you like to verify your fixes?",
+    "header": "Local Verification",
+    "options": [
+      { "label": "Run local verification", "description": "Run: {detected_commands}" },
+      { "label": "Push and let CI re-run", "description": "Skip local check, push to CI" },
+      { "label": "Skip entirely", "description": "Don't verify or push" }
+    ]
   }]
 }
 ```
 
 ---
 
-## Step 7: Local Verification Before Push
+## Step 10: Commit and Push
 
-After applying fixes, run local verification to catch issues before the next CI build.
+If user chooses to push:
 
-### 7.1 Determine Required Checks
+1. Stage only the changed files (not `git add -A`)
+2. Generate a commit message summarizing the fixes applied
+3. Confirm with user via AskUserQuestion before committing
+4. Commit and push
 
-| Code Change Type | Required Verification |
-|------------------|----------------------|
-| Any Go code changes | `/lint`, `make fmt` |
-| New/modified imports | `pesto update` |
-| New/modified functions | `/test` (targeted or full) |
-| BUILD.bazel changes | `pesto update`, targeted build |
-| Interface changes | `make mockgen`, `/lint` |
-
-### 7.2 Run Verification Commands
-
-Execute in this order (each depends on previous):
-
-1. **`make mockgen`** - Only if interfaces changed
-2. **`pesto update`** - Update BUILD files (required if imports changed)
-3. **`make fmt`** - Format all Go code
-4. **`/lint`** - Fix lint errors across URSA repo
-5. **`/test`** - Run tests for affected packages
-
-**Critical**: Run against the **entire URSA repo**, not just modified files. CI runs full checks.
-
-### 7.3 Present Verification Options
-
-Use AskUserQuestion to let user select verification scope:
-
-```json
-{
-  "questions": [{
-    "question": "Run local verification before pushing?",
-    "header": "Verify",
-    "options": [
-      {
-        "label": "Full verification (Recommended)",
-        "description": "Run /lint, make fmt, pesto update, /test for entire repo"
-      },
-      {
-        "label": "Quick verification",
-        "description": "Run /lint and make fmt only"
-      },
-      {
-        "label": "Skip verification",
-        "description": "Push changes without local verification"
-      }
-    ],
-    "multiSelect": false
-  }]
-}
 ```
-
-### 7.4 Execute Based on Selection
-
-| Selection | Commands |
-|-----------|----------|
-| Full verification | `make mockgen` (if needed) → `pesto update` → `make fmt` → `/lint` → `/test` |
-| Quick verification | `make fmt` → `/lint` |
-| Skip verification | Proceed directly to commit/push |
-
-After verification completes:
-```bash
-git add -A && git commit -m "Fix PR build failures" && git push
-gh pr checks --watch
+Changes pushed. CI will re-run checks.
+Monitor at: ${PR_URL}
 ```
 
 ---
@@ -373,50 +287,13 @@ gh pr checks --watch
 
 | Error | Recovery |
 |-------|----------|
-| No PR found | Exit with message to create/push PR |
-| No failed checks | Exit with success message |
-| Buildkite URL parse fails | Skip that check, continue with others |
-| Agent times out | Include partial results, note incomplete |
+| No PR found | Suggest creating/pushing PR first |
+| All checks passing | Exit with success message |
+| Buildkite MCP unavailable | Display setup instructions |
+| Agent timeout | Report partial results, note incomplete |
 | All agents fail | Suggest manual investigation with Buildkite URLs |
-| No Buildkite failures | Note only non-Buildkite checks failed |
-| Verification fails | Fix new errors before pushing, re-run verification |
-
----
-
-## Example Output
-
-```markdown
-## PR Build Failures
-
-### Summary
-- 3 failures across 1 build
-- Types: test_failure, compilation_error
-
-### Failures
-
-| Job | Type | Root Cause | Location |
-|-----|------|------------|----------|
-| Build | compilation_error | undefined: NewFetcher | controllers/query/fetcher.go:42 |
-| Unit Tests | test_failure | TestFetch: expected 5, got 0 | controllers/query/fetcher_test.go:89 |
-| Lint | lint_error | hugeParam: cfg is 256 bytes | controllers/query/config.go:15 |
-
-### Fix Plan
-
-1. [ ] Edit `controllers/query/fetcher.go:42`: Add missing NewFetcher function or fix import
-2. [ ] Edit `controllers/query/fetcher_test.go:89`: Update test expectation or fix mock setup
-3. [ ] Edit `controllers/query/config.go:15`: Pass Config by pointer instead of value
-4. [ ] Run: `bazel test //customers/ursa/controllers/query/...`
-
-### Verification
-
-After applying fixes, run Step 7 local verification:
-```bash
-pesto update           # Update BUILD files
-make fmt               # Format code
-/lint                  # Fix lint errors repo-wide
-/test                  # Run tests for affected packages
-
-git add -A && git commit -m "Fix PR build failures" && git push
-gh pr checks --watch
-```
-```
+| No Buildkite failures | Note which checks are non-Buildkite, suggest manual review |
+| Fix application fails | Report error, continue with remaining fixes |
+| Local verification fails | Offer to push anyway or abort |
+| All failures unrelated | Report all with context, exit without fix options |
+| All failures infrastructure | Report with Buildkite dashboard links, exit without fix options |
