@@ -115,4 +115,4 @@ PR     | Branch                        | Task            | Action
 
 Then:
 - Show the full `/project-status` output
-- Print: "Queued N agent parties. Run `h task queue watch` to monitor."
+- Print: "Queued N agent parties. Check status with `h queue ls`."

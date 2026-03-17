@@ -80,10 +80,14 @@ h subtask list                      # List subtasks of current parent
 ### Queue (delegating work to another worktree)
 ```bash
 h queue add -t TASK-NAME            # Write a prompt for Claude to run in TASK's worktree
-h queue ls                          # List queued prompts by status
-h queue run                         # Launch all pending prompts
-h queue watch                       # Start watcher daemon (run in hq session)
+h queue ls                          # List queued prompts by status (pending/running/done/failed)
+h queue run                         # Launch all pending prompts manually
+h queue status                      # Show currently running queue task details
 ```
+
+Note: `h queue watch` is a daemon that auto-processes new `pending` items every 2 seconds.
+It is normally **already running** in the `hq` tmux session — do NOT start a second one.
+To check queue progress, use `h queue ls`, not `h queue watch`.
 
 ### PR tracking
 ```bash
@@ -132,7 +136,7 @@ h s st      # → h subtask status
 ~/.config/hiiro/tasks/tasks.yml     # All task records
 ~/.config/hiiro/apps.yml            # App directory mappings
 ~/.config/hiiro/pinned_prs.yml      # Tracked PRs
-~/.config/hiiro/data/queue/         # Queue directories (wip/pending/running/done/failed)
+~/.local/share/hiiro/queue/         # Queue directories (wip/pending/running/done/failed)
 ```
 
 ## Resource Tracking
