@@ -73,7 +73,7 @@ Within each project, order PRs for merging:
 3. **Approved before needs-review** — approved PRs are closer to done
 4. **Non-draft before draft** — ready PRs come before WIP
 
-Use this heuristic: if PR A's branch name is a prefix of PR B's branch name, A should be merged first.
+Use this heuristic: if PR A's branch name is a fix-pr of PR B's branch name, A should be merged first.
 
 Mark explicit merge prerequisites in the report if detectable.
 
@@ -85,7 +85,7 @@ For each PR, determine its status class and next action:
 
 | Condition | Status | Next Action |
 |-----------|--------|-------------|
-| `checks.failed > 0` | `FAILING` | Run `/pr:fix` |
+| `checks.failed > 0` | `FAILING` | Run `/fix-pr` |
 | `checks.pending > 0` and `checks.failed == 0` | `PENDING` | Wait for CI |
 | All checks success and `review_decision == REVIEW_REQUIRED` | `NEEDS_REVIEW` | Request review / mark ready |
 | All checks success and `review_decision == APPROVED` | `APPROVED` | Ready to merge |
@@ -142,7 +142,7 @@ Write the report to `/tmp/project-status-$(date +%Y-%m-%d).md`.
 
 **Prompts to run:**
 ```
-/pr:fix
+/fix-pr
 ```
 [only include if checks are failing]
 
@@ -165,7 +165,7 @@ Write the report to `/tmp/project-status-$(date +%Y-%m-%d).md`.
 A prioritized flat list of the most important things to do right now, across all projects:
 
 1. **Fix failing [PR #NNNN](https://github.com/...)** (`project-name`) — N checks failing
-   > `/pr:fix` ← run this
+   > `/fix-pr` ← run this
 2. **Merge [PR #NNNN](https://github.com/...)** (`project-name`) — approved, all checks green
 3. **Request review on [PR #NNNN](https://github.com/...)** (`project-name`) — checks passing, needs review
 4. [continue for all PRs needing attention]
@@ -182,7 +182,7 @@ A copy-paste ready list of all prompts you should run:
 ```
 # Fix [PR #NNNN: title](https://github.com/...)
 h task switch [task-name]
-/pr:fix
+/fix-pr
 ```
 
 ### PRs Ready to Merge
