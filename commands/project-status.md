@@ -129,13 +129,12 @@ Write the report to `/tmp/project-status-$(date +%Y-%m-%d).md`.
 
 #### PRs (merge order)
 
-##### 1. [STATUS BADGE] #NNNN — PR Title
+##### 1. [STATUS BADGE] [#NNNN — PR Title](https://github.com/...)
 - **Branch:** `branch-name`
 - **Worktree:** `~/work/task/main`
 - **Checks:** N/N passing [or: N failing, N pending]
 - **Reviews:** [N approved / changes requested / REVIEW_REQUIRED]
 - **Draft:** yes/no
-- **URL:** https://github.com/...
 
 **Next Steps:**
 - [ ] [specific actionable next step]
@@ -165,10 +164,10 @@ Write the report to `/tmp/project-status-$(date +%Y-%m-%d).md`.
 
 A prioritized flat list of the most important things to do right now, across all projects:
 
-1. **Fix failing PR #NNNN** (`project-name`) — N checks failing
+1. **Fix failing [PR #NNNN](https://github.com/...)** (`project-name`) — N checks failing
    > `/pr:fix` ← run this
-2. **Merge PR #NNNN** (`project-name`) — approved, all checks green
-3. **Request review on PR #NNNN** (`project-name`) — checks passing, needs review
+2. **Merge [PR #NNNN](https://github.com/...)** (`project-name`) — approved, all checks green
+3. **Request review on [PR #NNNN](https://github.com/...)** (`project-name`) — checks passing, needs review
 4. [continue for all PRs needing attention]
 
 ---
@@ -179,26 +178,26 @@ A copy-paste ready list of all prompts you should run:
 
 ### Fix Failing PRs
 
-[For each FAILING PR:]
+[For each FAILING PR, include the PR URL as a markdown link:]
 ```
-# Fix PR #NNNN: [title]
+# Fix [PR #NNNN: title](https://github.com/...)
 h task switch [task-name]
 /pr:fix
 ```
 
 ### PRs Ready to Merge
 
-[For each APPROVED PR:]
+[For each APPROVED PR, include the PR URL as a markdown link:]
 ```
-# Merge PR #NNNN: [title]
+# Merge [PR #NNNN: title](https://github.com/...)
 h pr merge NNNN
 ```
 
 ### PRs Needing Review
 
-[For each NEEDS_REVIEW PR:]
+[For each NEEDS_REVIEW PR, include the PR URL as a markdown link:]
 ```
-# Request review on PR #NNNN: [title]
+# Request review on [PR #NNNN: title](https://github.com/...)
 h pr ready NNNN
 ```
 
@@ -265,3 +264,7 @@ This generates styled HTML, updates `~/claude/index.html`, and opens the report 
 - ALWAYS include a blank link between markdown element types when generating
   markdown.   Meaning, a blank line between a paragraph and a bulleted list.  a
   blank line between a head and a paragraph, etc.
+- ALWAYS render PR references as markdown links `[#NNNN — Title](url)` — never
+  as bare URLs or plain `#NNNN` text. The URL comes from the `url` field in
+  pinned_prs.yml. This applies everywhere: PR headings, roadmap list items,
+  prompts sections, and any inline mention of a PR.
