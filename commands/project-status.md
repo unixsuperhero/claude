@@ -298,6 +298,22 @@ mdoc /tmp/project-status-YYYY-MM-DD.md \
 
 This generates styled HTML, updates `~/claude/index.html`, and opens the report in your browser.
 
+**If `mdoc` fails or is unavailable**, generate a fallback HTML error report instead:
+
+1. Write an HTML file to `~/claude/docs/project-status-error-YYYY-MM-DD-HHMMSS.html` containing:
+   - A clear error banner explaining mdoc failed
+   - The **original user request** that triggered this `/project-status` run (copy it verbatim from conversation context)
+   - The raw markdown report content (in a `<pre>` block), so the data is not lost
+   - The error output from mdoc if available
+   - Timestamp
+
+2. Append the file path to `~/claude/index.json` (or update it if you can, same format as other entries)
+
+3. Open the file:
+   ```bash
+   open ~/claude/docs/project-status-error-YYYY-MM-DD-HHMMSS.html
+   ```
+
 ---
 
 ## Handling Missing Data
