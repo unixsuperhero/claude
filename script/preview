@@ -65,6 +65,16 @@ def ensure_in_repo(relative_path)
   home_file = CLAUDE_HOME / relative_path
   repo_file = REPO_ROOT / relative_path
 
+  # Detect backwards symlink: repo file should never be a symlink
+  if repo_file.symlink?
+    if home_file.exist? && !home_file.symlink?
+      puts "[FIX]     repo/#{relative_path} is a backwards symlink — would replace with real file from home"
+    else
+      puts "[REMOVE]  repo/#{relative_path} is a broken backwards symlink — would remove"
+    end
+    return
+  end
+
   return unless home_file.exist? && !home_file.symlink?
 
   if repo_file.exist?
