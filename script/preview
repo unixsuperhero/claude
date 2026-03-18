@@ -5,7 +5,6 @@ require 'pathname'
 
 REPO_ROOT = Pathname.new(File.expand_path('..', __dir__))
 CLAUDE_HOME = Pathname.new(File.expand_path('~/.claude'))
-TEMP_DIR = REPO_ROOT / 'claude_rsync'
 
 # Files/folders to track (tooling)
 TRACKED_PATTERNS = %w[
@@ -17,68 +16,77 @@ TRACKED_PATTERNS = %w[
 ]
 
 def main
-  # 1. Create temp folder
-  FileUtils.mkdir_p(TEMP_DIR)
+  puts "=== Preview Mode (no changes will be made) ===\n\n"
 
-  # 2. Rsync ~/.claude/ into temp folder
-  system('rsync', '-avz', "#{CLAUDE_HOME}/", "#{TEMP_DIR}/")
-
-  puts "\n=== Preview Mode (no changes will be made to ~/.claude/) ===\n\n"
-
-  # 3. Find new files that should be tracked and aren't symlinks
   TRACKED_PATTERNS.each do |pattern|
-    source_path = TEMP_DIR / pattern
-    next unless source_path.exist?
+    repo_path = REPO_ROOT / pattern
+    home_path = CLAUDE_HOME / pattern
 
-    if source_path.directory?
-      process_directory(source_path, pattern)
+    is_dir = (repo_path.directory?) ||
+             (home_path.exist? && home_path.directory? && !home_path.symlink?)
+
+    if is_dir
+      sync_directory(pattern)
     else
-      process_file(source_path, pattern)
+      sync_file(pattern)
     end
   end
 
-  puts "\n=== End Preview ===\n"
+  puts "\n=== End Preview ==="
 end
 
-def process_directory(source_dir, relative_base)
-  Dir.glob(source_dir / '**' / '*').each do |file|
-    next if File.directory?(file)
+def sync_directory(base_pattern)
+  repo_dir = REPO_ROOT / base_pattern
+  home_dir = CLAUDE_HOME / base_pattern
 
-    relative_to_temp = Pathname.new(file).relative_path_from(TEMP_DIR).to_s
-    process_file(Pathname.new(file), relative_to_temp)
+  if home_dir.exist? && !home_dir.symlink?
+    Dir.glob(home_dir / '**' / '*').each do |file|
+      next if File.directory?(file)
+      relative = Pathname.new(file).relative_path_from(CLAUDE_HOME).to_s
+      ensure_in_repo(relative)
+    end
+  end
+
+  if repo_dir.exist?
+    Dir.glob(repo_dir / '**' / '*').each do |file|
+      next if File.directory?(file)
+      relative = Pathname.new(file).relative_path_from(REPO_ROOT).to_s
+      ensure_symlink(relative)
+    end
   end
 end
 
-def process_file(source_file, relative_path)
+def sync_file(pattern)
+  ensure_in_repo(pattern)
+  ensure_symlink(pattern)
+end
+
+def ensure_in_repo(relative_path)
+  home_file = CLAUDE_HOME / relative_path
   repo_file = REPO_ROOT / relative_path
-  claude_file = CLAUDE_HOME / relative_path
 
-  # Skip if already a symlink in ~/.claude
-  if claude_file.symlink?
-    puts "[SKIP] ~/.claude/#{relative_path} - already a symlink"
-    return
-  end
+  return unless home_file.exist? && !home_file.symlink?
 
-  # Skip if repo file already exists and is up to date
   if repo_file.exist?
-    if FileUtils.identical?(source_file.to_s, repo_file.to_s)
-      puts "[SKIP] #{relative_path} - repo file already up to date"
-      return
-    end
+    puts "[SKIP]    #{relative_path} — repo file takes precedence over home copy"
+  else
+    puts "[COPY]    ~/.claude/#{relative_path} -> repo/#{relative_path}"
   end
+end
 
-  # Would create directory structure in repo
-  unless repo_file.dirname.exist?
-    puts "[WOULD CREATE DIR] #{repo_file.dirname.relative_path_from(REPO_ROOT)}"
-  end
+def ensure_symlink(relative_path)
+  repo_file = REPO_ROOT / relative_path
+  home_file = CLAUDE_HOME / relative_path
 
-  # Would copy file to repo
-  puts "[WOULD COPY] #{relative_path} -> #{repo_file.relative_path_from(REPO_ROOT)}"
+  return unless repo_file.exist?
 
-  # Would replace original in ~/.claude with symlink to repo file
-  if claude_file.exist? && !claude_file.symlink?
-    puts "[WOULD DELETE] ~/.claude/#{relative_path}"
-    puts "[WOULD SYMLINK] ~/.claude/#{relative_path} -> #{repo_file}"
+  if home_file.symlink?
+    return if home_file.readlink.to_s == repo_file.to_s
+    puts "[RELINK]  ~/.claude/#{relative_path} (stale symlink -> #{home_file.readlink})"
+  elsif home_file.exist?
+    puts "[REPLACE] ~/.claude/#{relative_path} — real file will be replaced with symlink"
+  else
+    puts "[SYMLINK] ~/.claude/#{relative_path} -> #{repo_file}"
   end
 end
 
