@@ -19,19 +19,29 @@ This command:
 
 ---
 
+## Context Detection
+
+**Before Step 1**, determine whether this command is running in a session that already has project context loaded (tasks, PRs, work logs already read earlier in the conversation):
+
+- **Active session** (tasks, PRs, and work logs already in context):
+  1. Skip re-reading files — use the data already in context
+  2. Run only the PR refresh command (Step 1, abbreviated below)
+  3. Generate a fresh report superseding the previous one
+  4. Proceed directly to Step 7
+
+- **Fresh session** (no prior context): run the full workflow from Step 1 through Step 7.
+
+In either case, **always** refresh PR statuses — never report on stale data.
+
+---
+
 ## Step 1: Refresh PR Statuses
 
 Run both in parallel:
 
 ```bash
-h pr update -U
+h pr ls -u
 h task ls
-```
-
-Then:
-
-```bash
-h pr ls
 ```
 
 ---
@@ -115,6 +125,34 @@ Write the report to `/tmp/project-status-$(date +%Y-%m-%d).md`.
 | Pending CI | N |
 | Awaiting review | N |
 | Ready to merge | N |
+| Pending deploys | N |
+| Docs/comms needed | N |
+
+---
+
+## Next Steps
+
+A dependency-ordered flat list of **all actions needed right now**, across all projects.
+
+Include **every category** of next step — not just PRs and code:
+- Deployments and rollouts
+- Documentation updates (runbooks, Confluence, READMEs)
+- Stakeholder / team communication (Slack announcements, Jira updates)
+- Monitoring, alerting, or validation steps after merges
+- Follow-up tasks or tickets to create
+- Cleanup (prune stale branches/PRs, remove feature flags)
+- Any blockers that need resolution before work can continue
+
+Rules for ordering:
+- Independent/easy actions come first (things that can be done immediately)
+- If action B depends on action A completing first, B must come after A
+- Within the same priority level: failing PRs > deploys > merges > reviews > docs/comms
+
+1. **[Action verb] [PR/task reference as markdown link]** — [one-line reason]
+   - **Shell:** `h task queue add "/fix-pr"`
+2. **Merge [PR #NNNN — Title](url)** (`project-name`) — approved, all checks green
+   - **Shell:** `h pr merge NNNN`
+3. [continue for all actionable items in execution order, including non-code steps]
 
 ---
 
@@ -127,6 +165,15 @@ Write the report to `/tmp/project-status-$(date +%Y-%m-%d).md`.
 **Tasks:** `task-name`, `task-name/subtask1`, ...
 **Status:** [one-line summary of where this project stands]
 
+#### PRs
+
+| Status | PR | Title |
+|--------|----|-------|
+| 🔴 FAILING | [#NNNN](url) | [PR Title](#1-status-badge-nnnn--pr-title) |
+| 🟢 APPROVED | [#MMMM](url) | [PR Title](#2-status-badge-mmmm--pr-title) |
+
+[one row per PR in merge order; Title cell is an anchor link to the PR's heading below]
+
 #### PRs (merge order)
 
 ##### 1. [STATUS BADGE] [#NNNN — PR Title](https://github.com/...)
@@ -137,22 +184,39 @@ Write the report to `/tmp/project-status-$(date +%Y-%m-%d).md`.
 - **Draft:** yes/no
 
 **Next Steps:**
-- [ ] [specific actionable next step]
-- [ ] [next step]
+- [ ] [specific actionable next step — fix, review, or merge action]
+- [ ] [any post-merge step: deploy, flag cleanup, monitoring, docs, comms]
 
 **Prompts to run:**
-```
-/fix-pr
-```
-[only include if checks are failing]
+
+1. **Switch to task context** — Shell command
+   ```
+   h task switch [task-name]
+   ```
+2. **Fix failing checks** — Claude prompt
+   ```
+   h task queue add "/fix-pr"
+   ```
+
+[only include if checks are failing; omit the task-switch step if already on the right task]
 
 ---
 
 [repeat for each PR in merge order]
 
-#### Task Next Steps
-- [ ] [overall task-level next step from work log or inferred]
-- [ ] [more steps]
+#### Project Next Steps
+
+Go beyond PRs — include every kind of action needed to complete this project:
+
+- [ ] [PR/code action if applicable]
+- [ ] [deployment or rollout step if applicable]
+- [ ] [documentation update if applicable — runbook, Confluence, README]
+- [ ] [stakeholder communication if applicable — Slack, Jira, email]
+- [ ] [monitoring or validation step after deploy]
+- [ ] [follow-up tasks or tickets to create]
+- [ ] [cleanup — feature flags, stale branches, etc.]
+
+Only include items that are actually relevant to this project based on work logs and PR context. Do not fabricate steps.
 
 ---
 
@@ -160,46 +224,36 @@ Write the report to `/tmp/project-status-$(date +%Y-%m-%d).md`.
 
 ---
 
-## Roadmap — Ordered Actions
-
-A prioritized flat list of the most important things to do right now, across all projects:
-
-1. **Fix failing [PR #NNNN](https://github.com/...)** (`project-name`) — N checks failing
-   > `/fix-pr` ← run this
-2. **Merge [PR #NNNN](https://github.com/...)** (`project-name`) — approved, all checks green
-3. **Request review on [PR #NNNN](https://github.com/...)** (`project-name`) — checks passing, needs review
-4. [continue for all PRs needing attention]
-
----
-
 ## Prompts to Run
 
-A copy-paste ready list of all prompts you should run:
+A copy-paste ready list of all actions you should run, as labeled steps:
 
 ### Fix Failing PRs
 
-[For each FAILING PR, include the PR URL as a markdown link:]
-```
-# Fix [PR #NNNN: title](https://github.com/...)
-h task switch [task-name]
-/fix-pr
-```
+[For each FAILING PR:]
+
+1. **Fix [PR #NNNN — title](url)** — Claude prompt
+   ```
+   h task queue add "/fix-pr"
+   ```
 
 ### PRs Ready to Merge
 
-[For each APPROVED PR, include the PR URL as a markdown link:]
-```
-# Merge [PR #NNNN: title](https://github.com/...)
-h pr merge NNNN
-```
+[For each APPROVED PR:]
+
+1. **Merge [PR #NNNN — title](url)** — Shell command
+   ```
+   h pr merge NNNN
+   ```
 
 ### PRs Needing Review
 
-[For each NEEDS_REVIEW PR, include the PR URL as a markdown link:]
-```
-# Request review on [PR #NNNN: title](https://github.com/...)
-h pr ready NNNN
-```
+[For each NEEDS_REVIEW PR:]
+
+1. **Request review on [PR #NNNN — title](url)** — Shell command
+   ```
+   h pr ready NNNN
+   ```
 
 ---
 
@@ -207,9 +261,10 @@ h pr ready NNNN
 
 [List any merged or closed PRs still tracked — these can be pruned with `h pr prune`]
 
-```
-h pr prune    # remove merged/closed PRs from tracking
-```
+1. **Prune stale PRs** — Shell command
+   ```
+   h pr prune
+   ```
 ```
 
 ---
@@ -251,7 +306,7 @@ This generates styled HTML, updates `~/claude/index.html`, and opens the report 
 - **No tasks**: report "No tasks found in tasks.yml."
 - **No work logs**: skip the goal/context line for that task — don't fabricate it.
 - **PR has no task field**: group under "Unassigned PRs" section at bottom of report.
-- **`h pr update` fails**: continue with cached data from pinned_prs.yml, note the refresh failed.
+- **`h pr ls -u` fails**: continue with cached data from pinned_prs.yml, note the refresh failed.
 
 ---
 
@@ -259,7 +314,7 @@ This generates styled HTML, updates `~/claude/index.html`, and opens the report 
 
 - Never invent task goals or next steps — only include what's in work logs or directly inferable from PR titles/check names.
 - Always show the actual check names that are failing, not just "N checks failed".
-- The prompts section must be copy-paste ready — include the exact `h task switch` to get to the right context first.
+- The prompts section must be copy-paste ready — use `h task queue add "/fix-pr"` for Claude prompts and `h pr merge NNNN` for shell commands. Label each step clearly as "Shell command" or "Claude prompt".
 - Merge order is a suggestion, not a strict dependency graph — mark it clearly as "suggested order".
 - ALWAYS include a blank link between markdown element types when generating
   markdown.   Meaning, a blank line between a paragraph and a bulleted list.  a
