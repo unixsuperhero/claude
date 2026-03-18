@@ -106,6 +106,19 @@ git checkout -b <branch-name>
 h branch track            # Track current branch under current task
 ```
 
+### Whole-Branch Rule (When Splitting Work Across Multiple PRs)
+
+When work is split into separate branches and PRs (e.g., a "whole" branch plus subset branches for staged review):
+
+1. **ALWAYS keep one "whole" branch** that contains all the work.
+2. **ALWAYS make code changes in the "whole" branch only** — never in the subset branches directly.
+3. **Update subset branches/PRs** using one of these methods:
+   - `git reset --hard <base-branch> && git checkout whole_branch -- file1 file2 ...`
+     (omit the `reset --hard` if it's too dangerous — just do the checkout)
+   - OR `git cherry-pick <commit-from-whole-branch>` onto the partial branch
+
+**Never edit files directly on a subset/partial branch.** Always make the change on the whole branch first, then propagate to the subset branch.
+
 ### Tracking branches
 Hiiro tracks branches per task. Always run `h branch track` after creating a branch so it appears in `h task status` and related commands.
 

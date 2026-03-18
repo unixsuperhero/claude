@@ -72,6 +72,21 @@ Do not force-push or reset. Only fast-forward pulls are safe here.
 
 ---
 
+## Whole-Branch Rule (When Splitting Work Across Multiple PRs)
+
+When the work is split into separate branches and PRs (e.g., a "whole" branch and one or more subset branches):
+
+1. **ALWAYS keep one "whole" branch** that contains all the work.
+2. **ALWAYS make code changes in the "whole" branch only** — never in the subset branches directly.
+3. **Update subset branches/PRs** using one of these methods:
+   - `git reset --hard <base-branch> && git checkout whole_branch -- file1 file2 ...`
+     (omit the `reset --hard` if it's too dangerous — just do the checkout)
+   - OR `git cherry-pick <commit-from-whole-branch>` onto the partial branch
+
+**Never edit files directly on a subset/partial branch.** Always make the change on the whole branch first, then propagate.
+
+---
+
 ## Then — do what the user is asking
 
 With the environment verified, proceed with the user's requested changes.
