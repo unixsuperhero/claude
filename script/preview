@@ -90,6 +90,17 @@ def ensure_symlink(relative_path)
 
   return unless repo_file.exist?
 
+  # Guard: if the home path already resolves to the same real file as the repo
+  # (e.g. a parent directory is a symlink into the repo), there's nothing to do.
+  begin
+    if File.realpath(home_file.to_s) == File.realpath(repo_file.to_s)
+      puts "[OK]      ~/.claude/#{relative_path} — already resolves to repo file (via dir symlink)"
+      return
+    end
+  rescue Errno::ENOENT, Errno::ELOOP
+    # home_file doesn't exist or is a broken symlink — proceed normally
+  end
+
   if home_file.symlink?
     return if home_file.readlink.to_s == repo_file.to_s
     puts "[RELINK]  ~/.claude/#{relative_path} (stale symlink -> #{home_file.readlink})"
