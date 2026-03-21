@@ -17,7 +17,8 @@
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "us.anthropic.claude-sonnet-4-6",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
-    "DISABLE_AUTOUPDATER": "1"
+    "DISABLE_AUTOUPDATER": "1",
+    "ENABLE_TOOL_SEARCH": "true"
   },
   "permissions": {
     "allow": [
@@ -45,9 +46,9 @@
       "Bash(git push:*)"
     ],
     "deny": [
-      "Bash(sudo *)",
-      "Bash(mkfs *)",
-      "Bash(dd *)",
+      "Bash(sudo:*)",
+      "Bash(mkfs:*)",
+      "Bash(dd:*)",
       "Edit(~/.ssh/**)",
       "Read(**/.env*)",
       "Read(**/*.pem)",
