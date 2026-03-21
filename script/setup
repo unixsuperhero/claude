@@ -34,28 +34,61 @@ def main
   puts "\nSetup complete!"
 end
 
-# For directory patterns: walk both sides and sync each file
+# For directory patterns: symlink the whole directory as one unit.
+# If the home directory is a real directory (not a symlink), back it up
+# by copying to the repo first, then replace it with a single symlink.
 def sync_directory(base_pattern)
   repo_dir = REPO_ROOT / base_pattern
   home_dir = CLAUDE_HOME / base_pattern
 
-  # Pass 1: move real files from home into repo (repo wins if both exist)
-  if home_dir.exist? && !home_dir.symlink?
-    Dir.glob(home_dir / '**' / '*').each do |file|
-      next if File.directory?(file)
-      relative = Pathname.new(file).relative_path_from(CLAUDE_HOME).to_s
-      ensure_in_repo(relative)
+  # Already correctly symlinked — nothing to do
+  if home_dir.symlink?
+    begin
+      return if File.realpath(home_dir.to_s) == File.realpath(repo_dir.to_s)
+    rescue Errno::ENOENT, Errno::ELOOP
+      # broken symlink — fall through to fix it
     end
+    puts "Updating directory symlink: ~/.claude/#{base_pattern}"
+    FileUtils.rm(home_dir.to_s)
   end
 
-  # Pass 2: ensure every repo file has a symlink in home
-  if repo_dir.exist?
-    Dir.glob(repo_dir / '**' / '*').each do |file|
-      next if File.directory?(file)
-      relative = Pathname.new(file).relative_path_from(REPO_ROOT).to_s
-      ensure_symlink(relative)
+  # home_dir is a real directory — migrate its contents into the repo,
+  # then back it up in-place and replace it with a symlink.
+  if home_dir.exist?
+    # If the repo dir already exists and has uncommitted changes, commit them
+    # before we overwrite anything.
+    if repo_dir.exist?
+      uncommitted = `git -C #{REPO_ROOT} status --porcelain #{base_pattern}`.strip
+      unless uncommitted.empty?
+        puts "Committing uncommitted repo changes in #{base_pattern} before migration..."
+        system("git -C #{REPO_ROOT} add #{base_pattern}")
+        system("git -C #{REPO_ROOT} commit -m 'setup: save #{base_pattern} before migrating from home directory'")
+      end
     end
+
+    # Rsync home dir contents into repo (trailing slash = contents, not dir itself)
+    puts "Migrating home directory to repo: #{base_pattern}"
+    FileUtils.mkdir_p(repo_dir.to_s)
+    system("rsync -a #{home_dir}/ #{repo_dir}/")
+
+    # Back up the original home dir in-place before removing it
+    timestamp = Time.now.strftime('%Y%m%d-%H%M%S')
+    backup = Pathname.new("#{home_dir}.bak.#{timestamp}")
+    puts "Backing up: #{home_dir} -> #{backup}"
+    FileUtils.cp_r(home_dir.to_s, backup.to_s)
+    puts "Removing real home directory: ~/.claude/#{base_pattern}"
+    FileUtils.rm_rf(home_dir.to_s)
   end
+
+  # Ensure the repo directory exists before symlinking
+  unless repo_dir.exist?
+    puts "Creating repo directory: #{base_pattern}"
+    FileUtils.mkdir_p(repo_dir.to_s)
+  end
+
+  FileUtils.mkdir_p(home_dir.dirname)
+  puts "Creating directory symlink: ~/.claude/#{base_pattern} -> #{repo_dir}"
+  FileUtils.ln_s(repo_dir.to_s, home_dir.to_s)
 end
 
 # For file patterns: sync the single file both ways
