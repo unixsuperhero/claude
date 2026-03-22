@@ -1,0 +1,18 @@
+#!/usr/bin/env ruby
+# Find circular/self-referencing symlinks anywhere under a given path.
+# Usage: script/find-loop-symlinks [dir]   (default: repo root)
+
+require 'find'
+
+root = ARGV[0] || File.expand_path('..', __dir__)
+
+Find.find(root) do |path|
+  next unless File.symlink?(path)
+  begin
+    File.realpath(path)
+  rescue Errno::ELOOP
+    puts path
+  rescue Errno::ENOENT
+    # broken symlink (target missing) — not circular, ignore
+  end
+end
