@@ -6,6 +6,38 @@ require 'pathname'
 REPO_ROOT = Pathname.new(File.expand_path('..', __dir__))
 CLAUDE_HOME = Pathname.new(File.expand_path('~/.claude'))
 
+DRY_RUN = ARGV.include?('-n') || ARGV.include?('--dry-run')
+puts "(dry run — no changes will be made)\n\n" if DRY_RUN
+
+def run(cmd)
+  puts "  $ #{cmd}"
+  system(cmd) unless DRY_RUN
+end
+
+def rm(path)
+  puts "  rm #{path}"
+  FileUtils.rm(path.to_s) unless DRY_RUN
+end
+
+def rm_rf(path)
+  puts "  rm -rf #{path}"
+  FileUtils.rm_rf(path.to_s) unless DRY_RUN
+end
+
+def cp_r(src, dst)
+  puts "  cp -r #{src} #{dst}"
+  FileUtils.cp_r(src.to_s, dst.to_s) unless DRY_RUN
+end
+
+def mkdir_p(path)
+  FileUtils.mkdir_p(path.to_s) unless DRY_RUN
+end
+
+def ln_s(src, dst)
+  puts "  ln -s #{src} #{dst}"
+  FileUtils.ln_s(src.to_s, dst.to_s) unless DRY_RUN
+end
+
 # Files/folders to track (tooling)
 TRACKED_PATTERNS = %w[
   commands
@@ -49,7 +81,7 @@ def sync_directory(base_pattern)
       # broken symlink — fall through to fix it
     end
     puts "Updating directory symlink: ~/.claude/#{base_pattern}"
-    FileUtils.rm(home_dir.to_s)
+    rm(home_dir)
   end
 
   # home_dir is a real directory — migrate its contents into the repo,
@@ -61,34 +93,34 @@ def sync_directory(base_pattern)
       uncommitted = `git -C #{REPO_ROOT} status --porcelain #{base_pattern}`.strip
       unless uncommitted.empty?
         puts "Committing uncommitted repo changes in #{base_pattern} before migration..."
-        system("git -C #{REPO_ROOT} add #{base_pattern}")
-        system("git -C #{REPO_ROOT} commit -m 'setup: save #{base_pattern} before migrating from home directory'")
+        run("git -C #{REPO_ROOT} add #{base_pattern}")
+        run("git -C #{REPO_ROOT} commit -m 'setup: save #{base_pattern} before migrating from home directory'")
       end
     end
 
     # Rsync home dir contents into repo (trailing slash = contents, not dir itself)
     puts "Migrating home directory to repo: #{base_pattern}"
-    FileUtils.mkdir_p(repo_dir.to_s)
-    system("rsync -a #{home_dir}/ #{repo_dir}/")
+    mkdir_p(repo_dir)
+    run("rsync -a --copy-links #{home_dir}/ #{repo_dir}/")
 
     # Back up the original home dir in-place before removing it
     timestamp = Time.now.strftime('%Y%m%d-%H%M%S')
     backup = Pathname.new("#{home_dir}.bak.#{timestamp}")
     puts "Backing up: #{home_dir} -> #{backup}"
-    FileUtils.cp_r(home_dir.to_s, backup.to_s)
+    cp_r(home_dir, backup)
     puts "Removing real home directory: ~/.claude/#{base_pattern}"
-    FileUtils.rm_rf(home_dir.to_s)
+    rm_rf(home_dir)
   end
 
   # Ensure the repo directory exists before symlinking
   unless repo_dir.exist?
     puts "Creating repo directory: #{base_pattern}"
-    FileUtils.mkdir_p(repo_dir.to_s)
+    mkdir_p(repo_dir)
   end
 
-  FileUtils.mkdir_p(home_dir.dirname)
+  mkdir_p(home_dir.dirname)
   puts "Creating directory symlink: ~/.claude/#{base_pattern} -> #{repo_dir}"
-  FileUtils.ln_s(repo_dir.to_s, home_dir.to_s)
+  ln_s(repo_dir, home_dir)
 end
 
 # For file patterns: sync the single file both ways
@@ -107,12 +139,13 @@ def ensure_in_repo(relative_path)
   if repo_file.symlink?
     if home_file.exist? && !home_file.symlink?
       puts "Fixing backwards repo symlink: #{relative_path}"
-      FileUtils.rm(repo_file.to_s)
-      FileUtils.mkdir_p(repo_file.dirname)
-      FileUtils.cp(home_file.to_s, repo_file.to_s)
+      rm(repo_file)
+      mkdir_p(repo_file.dirname)
+      puts "  cp #{home_file} #{repo_file}"
+      FileUtils.cp(home_file.to_s, repo_file.to_s) unless DRY_RUN
     else
       puts "Removing broken backwards repo symlink: #{relative_path}"
-      FileUtils.rm(repo_file.to_s)
+      rm(repo_file)
     end
     return
   end
@@ -123,9 +156,10 @@ def ensure_in_repo(relative_path)
   if repo_file.exist?
     puts "Repo file takes precedence, skipping home copy: #{relative_path}"
   else
-    FileUtils.mkdir_p(repo_file.dirname)
+    mkdir_p(repo_file.dirname)
     puts "Moving to repo: #{relative_path}"
-    FileUtils.cp(home_file.to_s, repo_file.to_s)
+    puts "  cp #{home_file} #{repo_file}"
+    FileUtils.cp(home_file.to_s, repo_file.to_s) unless DRY_RUN
   end
 end
 
@@ -150,16 +184,16 @@ def ensure_symlink(relative_path)
     # Already a symlink — check if it points to the right place
     return if home_file.readlink.to_s == repo_file.to_s
     puts "Updating symlink: ~/.claude/#{relative_path}"
-    FileUtils.rm(home_file.to_s)
+    rm(home_file)
   elsif home_file.exist?
     # Real file — repo wins, replace with symlink
     puts "Replacing real file with symlink: ~/.claude/#{relative_path}"
-    FileUtils.rm(home_file.to_s)
+    rm(home_file)
   end
 
-  FileUtils.mkdir_p(home_file.dirname)
+  mkdir_p(home_file.dirname)
   puts "Creating symlink: ~/.claude/#{relative_path} -> #{repo_file}"
-  FileUtils.ln_s(repo_file.to_s, home_file.to_s)
+  ln_s(repo_file, home_file)
 end
 
 main
