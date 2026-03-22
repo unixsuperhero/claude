@@ -80,7 +80,16 @@ def sync_directory(base_pattern)
     rescue Errno::ENOENT, Errno::ELOOP
       # broken symlink — fall through to fix it
     end
+    # Case 2: Symlink pointing elsewhere — migrate its contents into repo first
     puts "Updating directory symlink: ~/.claude/#{base_pattern}"
+    begin
+      target = File.realpath(home_dir.to_s)
+      puts "Migrating symlink target to repo: #{target}"
+      mkdir_p(repo_dir)
+      run("rsync -a --copy-links #{target}/ #{repo_dir}/")
+    rescue Errno::ENOENT, Errno::ELOOP
+      # broken symlink — nothing to migrate
+    end
     rm(home_dir)
   end
 
