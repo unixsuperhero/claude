@@ -1,0 +1,8 @@
+{
+  "name": "local",
+  "description": "Local skills and customizations for this machine",
+  "version": "local",
+  "author": {
+    "name": "josh"
+  }
+}
