@@ -68,6 +68,25 @@ Maintain `~/notes/files/INDEX` — a plain text file, one absolute path per line
 
 ---
 
+## Creating Branches and PRs
+
+Anytime work is going to be split up into multiple branches or multiple PRs,
+here are some rules and guidelines for how to do it:
+
+Whenever splitting work into multiple multiple PRs, we should always maintain
+one central branch that has all of the changes and never make changes to one of
+the split branches or PRs. out. But a different way to say the same thing is
+only ever make code changes to the whole branch/PR and then once the changes are
+made You can then pull them into the side branch by either checking out just the
+files that changed that were relevant to that original branch. Not original
+branch, but the side branch. Or you can cherry pick the latest commit if the
+latest commit has changes that are isolated to just that side PR branch.
+
+There are ways to do it basically, but always pulling the latest relevant
+changes from the whole PR. 
+
+---
+
 ## Resource Tracking
 
 Whenever a resource is created or discovered, track it with hiiro immediately:
@@ -79,12 +98,14 @@ Whenever a resource is created or discovered, track it with hiiro immediately:
 - **Any branch** (after creating or checking out a branch):
   ```bash
   h branch tag <branch> <task-name>
+  h branch save         # save current branch to current task
   ```
 - **Any PR** (after pushing and opening a PR):
   ```bash
   h pr track            # track current branch's PR
   h pr track 1234       # track by PR number
   ```
+  Always run `h pr track`, `h pr tag $(h pr number) $(h task current) $(h branch current)` and `h branch save` after opening a PR.
 - **Tasks/subtasks**: use `h task` and `h subtask` commands (see Work Logging above)
 
 ## Common Pitfalls
@@ -117,6 +138,14 @@ Before running `h worktree create`, `git worktree add`, or any branch creation c
 - `h wt ls` — list existing hiiro worktrees
 - `git branch --list <name>` — check if a branch exists
 If it already exists, check it out rather than creating a new one.
+
+### Oncall: Don't Generate PRs That Mask Symptoms
+When an oncall investigation reveals a **data collision or configuration conflict** (e.g., "IA name already in use", duplicate key errors, naming conflicts), do NOT generate a PR that adds alerting, Slack notifications, or error logging as a "fix". That masks the symptom, reduces future visibility into the problem, and leaves the root cause unresolved.
+
+For data collision errors:
+- The immediate resolution is **manual data remediation** (rename/reassign the conflicting record), not a code change
+- A code fix (if warranted) should address the underlying uniqueness/naming scheme, not paper over the error
+- Check `~/proj/claude/skills/onboarding-attributes/references/ia-naming-collision.md` for the Inventory Area naming collision runbook
 
 ## Model and Thinking Selection
 

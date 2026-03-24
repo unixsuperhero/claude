@@ -2,7 +2,6 @@
 claude_rsync/
 plugins/
 !plugins/local/**/*
-skills/onboarding-attributes/
 settings.local.json
 
 # Keep the temp folder structure
