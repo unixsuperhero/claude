@@ -58,6 +58,18 @@ Parse the YAML files to build a complete picture of each task and its associated
 
 ---
 
+## UPDATE
+
+ignore some of the steps and get PR info from gh
+look at my closed prs, open PRs, etc.
+
+
+there aer some PRs that were merged, but in the last status update, a bunch of
+stuff was missing or had incorrect info
+
+
+---
+
 ## Step 3: Build Project Groups
 
 Group tasks into projects by their top-level name:

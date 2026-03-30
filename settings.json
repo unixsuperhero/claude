@@ -103,6 +103,15 @@
             "command": "PARENT_ARGS=$(ps -p $PPID -o args= 2>/dev/null); if ! echo \"$PARENT_ARGS\" | grep -q -- \"--team-name\"; then SAVED_PANE=$(cat /tmp/claude_main_pane 2>/dev/null); if [ -n \"$SAVED_PANE\" ]; then tmux select-pane -t \"$SAVED_PANE\"; fi; fi"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command' | grep -q 'gh pr create' && (h pr track && h pr tag $(h pr number) $(h task current) $(h branch current) && h branch save) || true"
+          }
+        ]
       }
     ],
     "Notification": [

@@ -1,5 +1,7 @@
 # Claude Global Instructions
 
+- MANDATORY: I'm a visual person and when we do have discussions about code, I like to have data examples with data structures to make it easier for me to understand - use simplified js style data structures if it is possible. Also for same reasons lets use TaskList more to reflect all granular work that I asked your about and what you're doing each time, it helps to visualize everything for me, keep it updated for each interaction.
+
 ## Asking Questions
 
 When asking a follow-up question or clarifying question, ALWAYS use the AskUserQuestion tool. Never ask questions in plain prose text.

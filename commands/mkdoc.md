@@ -42,7 +42,7 @@ Add `--no-open` if the user does not want the browser to open.
 - Update `~/claude/index.json` and regenerate `~/claude/index.html`
 - Open the file in the browser (unless `--no-open`)
 
-After running, delete the intermediate `.md` file if it was only a temp artifact.
+Do not delete the intermediate `.md` file.
 
 ---
 
